@@ -4,10 +4,14 @@ Control dock for cliamp on Omarchy 4, works with headless daemon, casts to other
 on the same LAN network.
 
 ## Install
+```bash
+omarchy plugin add https://github.com/Greisyn/Cliamp_Omadock.git --enable
+omarchy restart shell
+```
 
+Manual install:
 ```bash
 git clone https://github.com/Greisyn/Cliamp_Omadock.git ~/.config/omarchy/plugins/local.cliamp-dock
-chmod +x ~/.config/omarchy/plugins/local.cliamp-dock/lan-share.sh
 omarchy restart shell
 ```
 
@@ -181,3 +185,8 @@ Play a playlist on this machine, listen in the bedroom/office in sync.
   (MP3 192k, plays in any browser/player, ~2s delay, not synced).
 - Note: the service is `keepLoaded`, so after updating this plugin run
   `omarchy restart shell` once to pick up service-side changes.
+
+## Uninstall
+```bash
+omarchy plugin remove local.cliamp-dock
+```
