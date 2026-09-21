@@ -145,6 +145,15 @@ PanelWindow {
       id: content
       anchors.fill: parent
       Keys.onEscapePressed: root.collapse()
+      // PageUp/PageDown scroll the card body a page at a time (the card
+      // has no text inputs, so these keys never collide with typing).
+      Keys.onPressed: function(event) {
+        if (event.key !== Qt.Key_PageDown && event.key !== Qt.Key_PageUp) return;
+        var maxY = Math.max(0, scroller.contentHeight - scroller.height);
+        var dir = event.key === Qt.Key_PageDown ? 1 : -1;
+        scroller.contentY = Math.max(0, Math.min(maxY, scroller.contentY + dir * scroller.height));
+        event.accepted = true;
+      }
 
       // header icon tile
       Rectangle {

@@ -78,7 +78,19 @@ Panel {
     contentWidth: fittedContentWidth(Style.space(440))
     contentHeight: fittedContentHeight(contentColumn.implicitHeight)
 
+    // PageUp/PageDown scroll a page at a time so lower sections (e.g. LAN
+    // Share) stay reachable on short screens. Single-line inputs ignore
+    // these keys, so they bubble up here from anywhere in the panel.
+    Keys.onPressed: function(event) {
+      if (event.key !== Qt.Key_PageDown && event.key !== Qt.Key_PageUp) return;
+      var maxY = Math.max(0, panelScroller.contentHeight - panelScroller.height);
+      var dir = event.key === Qt.Key_PageDown ? 1 : -1;
+      panelScroller.contentY = Math.max(0, Math.min(maxY, panelScroller.contentY + dir * panelScroller.height));
+      event.accepted = true;
+    }
+
     Flickable {
+      id: panelScroller
       anchors.fill: parent
       contentWidth: width
       contentHeight: contentColumn.implicitHeight

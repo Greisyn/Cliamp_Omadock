@@ -86,6 +86,9 @@ The bar shows only an icon (play state + settings).
 
 Persisted to `~/.config/omarchy/local.cliamp-dock.json`.
 
+Long panels scroll with the mouse wheel or PageUp/PageDown (e.g. to reach
+LAN Share on short screens).
+
 ## Theme-aware
 
 All surfaces use `Color.popups.background/text/border`, `Color.accent`,
