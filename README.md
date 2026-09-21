@@ -11,6 +11,10 @@ chmod +x ~/.config/omarchy/plugins/local.cliamp-dock/lan-share.sh
 omarchy restart shell
 ```
 
+> First run: the plugin starts closed by default. Look for the slim edge
+> handle on the right edge of the screen (middle) — hover it briefly or
+> tap it to reveal the player card.
+
 LAN audio needs `yay -S snapcast` on sharer and listeners (ffmpeg ships
 with Omarchy). Open TCP 1704/1705/1780 on the sharer, or your custom ports.
 
