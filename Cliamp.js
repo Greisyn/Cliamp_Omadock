@@ -131,6 +131,12 @@ function onOff() { return ["on", "off"]; }
 function lanScriptSuffix() {
   return "/.config/omarchy/plugins/local.cliamp-dock/lan-share.sh";
 }
+// Mirrors valid_host() in lan-share.sh: letters, digits, dot, dash,
+// underscore only. Rejects empty strings and shell metachars so hostile
+// TextField / IPC input fails fast in QML before reaching the helper.
+function isValidHost(host) {
+  return /^[A-Za-z0-9._-]+$/.test(String(host || ""));
+}
 function lanCheckCmd(script) { return [script, "check"]; }
 function lanStatusCmd(script) { return [script, "status", "--json"]; }
 function lanShareStartCmd(script, stream, control, web, monitor) {

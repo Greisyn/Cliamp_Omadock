@@ -224,7 +224,7 @@ Panel {
             TextField {
               width: parent.width; text: config.lanHost; placeholderText: "10.0.0.212";
               foreground: root.contentForeground; font.family: root.contentFontFamily;
-              onAccepted: { config.set("lanHost", text); }
+              onAccepted: { config.set("lanHost", text.trim()); }
             }
           }
           Column { width: (parent.width - parent.spacing) / 2; spacing: 2

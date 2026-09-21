@@ -78,6 +78,16 @@ valid_port() {
   else printf '%s' "$2"; fi
 }
 
+# True when $1 is a safe hostname/IPv4 (letters, digits, dot, dash, underscore).
+# Rejects shell metachars, spaces, slashes, and empty strings so host values
+# can never escape into shell interpretation.
+valid_host() {
+  case "${1:-}" in
+    ""|*[!A-Za-z0-9._-]*) return 1 ;;
+    *) return 0 ;;
+  esac
+}
+
 # Current share ports as "stream control web" (defaults when never started).
 share_ports() {
   if [ -f "$PORTS_FILE" ]; then
@@ -196,9 +206,13 @@ port_open() {
 }
 
 tcp_reachable() {
-  # $1 = host, $2 = port; true if TCP connects within ~3s
+  # $1 = host, $2 = port; true if TCP connects within ~3s.
+  # Host/port are passed as positional params ($0/$1 inside bash -c) so
+  # shell metachars in user input can never be re-parsed as code.
   local host="$1" port="$2"
-  timeout 3 bash -c "</dev/tcp/$host/$port" 2>/dev/null
+  valid_host "$host" || return 2
+  case "${port:-}" in ''|*[!0-9]*) return 2 ;; esac
+  timeout 3 bash -c 'exec 3<>/dev/tcp/"$0"/"$1"' "$host" "$port" 2>/dev/null
 }
 
 cmd_check() {
@@ -268,6 +282,7 @@ cmd_status() {
 # POST a JSON-RPC body to the sharer; prints the response.
 snap_rpc() {
   # $1 = host, $2 = web port, $3 = request body
+  valid_host "$1" || { echo "invalid host: $1" >&2; return 2; }
   curl -s -m 5 -X POST "http://$1:$2/jsonrpc" \
     -H 'Content-Type: application/json' -d "$3"
 }
@@ -310,6 +325,7 @@ cmd_listen_volume() {
   web="$(valid_port "${2:-}" "$DEF_WEB")"
   pct="${3:-}"
   [ -z "$host" ] && { echo "usage: $0 listen-volume <host> <web-port> [percent]" >&2; return 2; }
+  valid_host "$host" || { echo "invalid host: $host" >&2; return 2; }
   have curl || { echo "missing: curl" >&2; return 3; }
   have jq || { echo "missing: jq" >&2; return 3; }
   local cid req vol
@@ -430,6 +446,7 @@ cmd_listen_start() {
   # dialing it fails with hello timeout / unknown message type.
   local host="${1:-}"
   [ -z "$host" ] && { echo "usage: $0 listen-start <host-ip> [stream-port [web-port]]" >&2; return 2; }
+  valid_host "$host" || { echo "invalid host: $host (letters, digits, . _ - only)" >&2; return 2; }
   local req_port="${2:-}"
   local cport; cport="$(valid_port "$req_port" "$DEF_STREAM")"
   # Auto-heal legacy callers/configs that saved 1705 (control) for listening.

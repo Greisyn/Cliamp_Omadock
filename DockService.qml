@@ -317,6 +317,7 @@ Item {
     root.lanError = "";
     var h = String(host || config.lanHost || "").trim();
     if (h === "") { root.lanError = "enter host IP first"; return; }
+    if (!Cliamp.isValidHost(h)) { root.lanError = "invalid host (letters, digits, . _ - only)"; return; }
     config.set("lanHost", h);
     lanRun(Cliamp.lanListenStartCmd(root.lanScript, h, config.lanStreamPort, config.lanWebPort), function(out) {
       root.lanNoteError(out);
@@ -325,6 +326,7 @@ Item {
   function lanListenStop() { root.lanError = ""; lanRun(Cliamp.lanListenStopCmd(root.lanScript)); }
   function lanListenVolumeSet(v) {
     var pct = Math.max(0, Math.min(100, Math.round(Number(v) || 0)));
+    if (!Cliamp.isValidHost(config.lanHost)) { root.lanError = "invalid host (letters, digits, . _ - only)"; return; }
     root.lanListenVolumePreview = pct;
     lanRun(Cliamp.lanListenVolumeCmd(root.lanScript, config.lanHost, config.lanWebPort, pct), function(out) {
       var got = Cliamp.parseLanListenVolume(out);
@@ -453,7 +455,11 @@ Item {
         listenVolume: root.lanListenVolume, roomSilent: root.lanRoomSilent,
         httpPort: config.lanHttpPort });
     }
-    function listen(host: string): string { root.lanListenStart(host); return "listening:" + host; }
+    function listen(host: string): string {
+      var h = String(host || "").trim();
+      if (!Cliamp.isValidHost(h)) { root.lanError = "invalid host (letters, digits, . _ - only)"; return "invalid-host"; }
+      root.lanListenStart(h); return "listening:" + h;
+    }
     function unlisten(): string { root.lanListenStop(); return "stopped"; }
   }
 }
