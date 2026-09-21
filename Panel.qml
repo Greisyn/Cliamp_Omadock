@@ -419,6 +419,13 @@ Panel {
           width: parent.width; spacing: Style.spacing.sm
           WidgetButton { text: "Reset dock settings"; onPressed: function() { config.resetAll(); } }
           WidgetButton { text: "Close"; onPressed: function() { root.close(); } }
+          Text {
+            textFormat: Text.PlainText
+            text: "v0.2.0"
+            color: Util.alpha(root.contentForeground, 0.45)
+            font.family: root.contentFontFamily; font.pixelSize: Style.font.caption
+            anchors.verticalCenter: parent.verticalCenter
+          }
         }
       }
     }

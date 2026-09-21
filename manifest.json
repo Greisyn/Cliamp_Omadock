@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "local.cliamp-dock",
   "name": "Cliamp Dock",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "author": "local",
   "license": "MIT",
   "description": "Floating docked player for cliamp: media controls + all adjustable options, theme-aware. Bar shows only an icon for settings.",
