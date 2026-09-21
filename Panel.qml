@@ -31,6 +31,14 @@ Panel {
   function open() { root.controller.show(); }
   function toggle() { root.opened ? root.close() : root.open(); }
 
+  // Touchpad-friendly paging (no wheel needed): scrolls the settings
+  // Flickable a full page, clamped to its bounds. No-op when all content
+  // fits.
+  function pagePanel(dir) {
+    var maxY = Math.max(0, panelScroller.contentHeight - panelScroller.height);
+    panelScroller.contentY = Math.max(0, Math.min(maxY, panelScroller.contentY + dir * panelScroller.height));
+  }
+
   component RowLabel: Text {
     textFormat: Text.PlainText
     color: root.contentForeground
@@ -78,14 +86,12 @@ Panel {
     contentWidth: fittedContentWidth(Style.space(440))
     contentHeight: fittedContentHeight(contentColumn.implicitHeight)
 
-    // PageUp/PageDown scroll a page at a time so lower sections (e.g. LAN
-    // Share) stay reachable on short screens. Single-line inputs ignore
-    // these keys, so they bubble up here from anywhere in the panel.
+    // PageUp/PageDown scroll a page at a time so lower sections stay
+    // reachable on short screens. Single-line inputs ignore these keys,
+    // so they bubble up here from anywhere in the panel.
     Keys.onPressed: function(event) {
       if (event.key !== Qt.Key_PageDown && event.key !== Qt.Key_PageUp) return;
-      var maxY = Math.max(0, panelScroller.contentHeight - panelScroller.height);
-      var dir = event.key === Qt.Key_PageDown ? 1 : -1;
-      panelScroller.contentY = Math.max(0, Math.min(maxY, panelScroller.contentY + dir * panelScroller.height));
+      root.pagePanel(event.key === Qt.Key_PageDown ? 1 : -1);
       event.accepted = true;
     }
 
@@ -113,148 +119,10 @@ Panel {
         }
         SwitchRow { label: "Pin open (no auto-collapse)"; checked: config.keepOpen; onFlipped: config.set("keepOpen", !config.keepOpen) }
 
-        SectionHeader { text: "Placement & size" }
-        Row {
-          width: parent.width; spacing: Style.spacing.sm
-          Repeater {
-            model: ["left", "right", "bottom"]
-            delegate: WidgetButton { text: modelData; active: config.placement === modelData; onPressed: function() { config.set("placement", modelData); } }
-          }
-        }
-        Row {
-          width: parent.width; spacing: Style.spacing.lg
-          Column { width: (parent.width - parent.spacing) / 2; spacing: 2
-            RowLabel { text: config.placement === "bottom" ? "Tray width (" + config.bottomWidth + ")" : "Side width (" + config.sideWidth + ")"; width: parent.width }
-            PanelSlider {
-              width: parent.width
-              minimum: config.placement === "bottom" ? 560 : 300
-              maximum: config.placement === "bottom" ? 1400 : 640
-              step: 10
-              value: config.placement === "bottom" ? config.bottomWidth : config.sideWidth
-              onMoved: function(v) { config.set(config.placement === "bottom" ? "bottomWidth" : "sideWidth", Math.round(v)); }
-            }
-          }
-          Column { width: (parent.width - parent.spacing) / 2; spacing: 2
-            RowLabel { text: config.placement === "bottom" ? "Tray height (" + config.bottomHeight + ")" : "Side height (" + config.sideHeight + ")"; width: parent.width }
-            PanelSlider {
-              width: parent.width
-              minimum: config.placement === "bottom" ? 400 : 460
-              maximum: config.placement === "bottom" ? 800 : 1000
-              step: 10
-              value: config.placement === "bottom" ? config.bottomHeight : config.sideHeight
-              onMoved: function(v) { config.set(config.placement === "bottom" ? "bottomHeight" : "sideHeight", Math.round(v)); }
-            }
-          }
-        }
-        SwitchRow { label: "Compact mode"; checked: config.compact; onFlipped: config.set("compact", !config.compact) }
-
-        // ---- Activation & motion (mirrors oShelf) ----
-        SectionHeader { text: "Edge handle & motion" }
-        Row {
-          width: parent.width; spacing: Style.spacing.lg
-          Column { width: (parent.width - parent.spacing) / 2; spacing: 2
-            RowLabel { text: "Hover to open (" + config.openDelay + "ms)"; width: parent.width }
-            PanelSlider { width: parent.width; minimum: 150; maximum: 1500; step: 10; value: config.openDelay; onMoved: function(v) { config.set("openDelay", Math.round(v)); } }
-          }
-          Column { width: (parent.width - parent.spacing) / 2; spacing: 2
-            RowLabel { text: "Leave to close (" + config.closeDelay + "ms)"; width: parent.width }
-            PanelSlider { width: parent.width; minimum: 250; maximum: 2500; step: 10; value: config.closeDelay; onMoved: function(v) { config.set("closeDelay", Math.round(v)); } }
-          }
-        }
-        Row {
-          width: parent.width; spacing: Style.spacing.lg
-          Column { width: (parent.width - parent.spacing) / 2; spacing: 2
-            RowLabel { text: "Handle length (" + config.activationLength + ")"; width: parent.width }
-            PanelSlider { width: parent.width; minimum: 80; maximum: 600; step: 5; value: config.activationLength; onMoved: function(v) { config.set("activationLength", Math.round(v)); } }
-          }
-          Column { width: (parent.width - parent.spacing) / 2; spacing: 2
-            RowLabel { text: "Handle depth (" + config.activationDepth + ")"; width: parent.width }
-            PanelSlider { width: parent.width; minimum: 4; maximum: 24; step: 1; value: config.activationDepth; onMoved: function(v) { config.set("activationDepth", Math.round(v)); } }
-          }
-        }
-        RowLabel { text: "Handle position along edge (" + config.activationPosition + "%)"; width: parent.width }
-        PanelSlider { width: parent.width; minimum: 10; maximum: 90; step: 1; value: config.activationPosition; onMoved: function(v) { config.set("activationPosition", Math.round(v)); } }
-        RowLabel { text: "Motion duration (" + config.motionDuration + "ms)"; width: parent.width }
-        PanelSlider { width: parent.width; minimum: 120; maximum: 420; step: 5; value: config.motionDuration; onMoved: function(v) { config.set("motionDuration", Math.round(v)); } }
-        SwitchRow { label: "Steady hover (moving restarts open delay)"; checked: config.steadyHover; onFlipped: config.set("steadyHover", !config.steadyHover) }
-        SwitchRow { label: "Reduced motion"; checked: config.reducedMotion; onFlipped: config.set("reducedMotion", !config.reducedMotion) }
-
-        // ---- Visible sections ----
-        SectionHeader { text: "Dock sections (hide options)" }
-        SwitchRow { label: "Progress / seek bar"; checked: config.showProgress; onFlipped: config.set("showProgress", !config.showProgress) }
-        SwitchRow { label: "Volume slider"; checked: config.showVolume; onFlipped: config.set("showVolume", !config.showVolume) }
-        SwitchRow { label: "Shuffle / repeat / mono"; checked: config.showToggles; onFlipped: config.set("showToggles", !config.showToggles) }
-        SwitchRow { label: "EQ row"; checked: config.showEq; onFlipped: config.set("showEq", !config.showEq) }
-        SwitchRow { label: "Visualizer / speed row"; checked: config.showMeta; onFlipped: config.set("showMeta", !config.showMeta) }
-        SwitchRow { label: "Live visualizer bars"; checked: config.showVis; onFlipped: config.set("showVis", !config.showVis) }
-
-        // ---- Cliamp adjustable options ----
-        SectionHeader { text: "Cliamp options" }
-        RowLabel {
-          width: parent.width; wrapMode: Text.WordWrap
-          text: "Now: " + (root.dockService && root.dockService.cliamp ? Cliamp.trackTitle(root.dockService.cliamp) : "…")
-        }
-        RowLabel { text: "Volume dB (" + config.volumeDb + ") — drag, release to apply"; width: parent.width }
-        PanelSlider {
-          width: parent.width; minimum: -30; maximum: 6; step: 0.5
-          value: root.dockService ? root.dockService.volumeDb : config.volumeDb
-          onMoved: function(v) { if (root.dockService) root.dockService.previewVolume(v); else config.set("volumeDb", Math.round(v * 2) / 2); }
-          onReleased: function(v) { if (root.dockService) root.dockService.commitVolume(v); }
-        }
-        Row {
-          width: parent.width; spacing: Style.spacing.sm
-          WidgetButton { text: "Shuffle: " + Cliamp.shuffleText(root.dockService ? root.dockService.cliamp : null); onPressed: function() { root.applyCliamp("shuffle", "toggle"); } }
-          WidgetButton { text: "Repeat: " + Cliamp.repeatText(root.dockService ? root.dockService.cliamp : null); onPressed: function() { root.applyCliamp("repeat", "cycle"); } }
-          WidgetButton { text: "Mono: " + Cliamp.monoText(root.dockService ? root.dockService.cliamp : null); onPressed: function() { root.applyCliamp("mono", "toggle"); } }
-        }
-        RowLabel { text: "Speed (" + (root.dockService && root.dockService.cliamp && root.dockService.cliamp.speed ? root.dockService.cliamp.speed : config.speed) + "x)"; width: parent.width }
-        PanelSlider {
-          width: parent.width; minimum: 0.25; maximum: 2.0; step: 0.05
-          value: root.dockService && root.dockService.cliamp && root.dockService.cliamp.speed ? Number(root.dockService.cliamp.speed) : config.speed
-          onReleased: function(v) { root.applyCliamp("speed", Math.round(v * 100) / 100); config.set("speed", Math.round(v * 100) / 100); }
-        }
-
-        RowLabel { text: "EQ preset"; width: parent.width }
-        Dropdown {
-          width: parent.width
-          value: root.dockService && root.dockService.cliamp && root.dockService.cliamp.eq_preset ? String(root.dockService.cliamp.eq_preset) : config.eqPreset
-          options: Cliamp.eqPresets()
-          onChanged: function(v) { root.applyCliamp("eqPreset", v); config.set("eqPreset", v); }
-        }
-        RowLabel { text: "Visualizer"; width: parent.width }
-        Dropdown {
-          width: parent.width
-          value: root.dockService && root.dockService.cliamp && root.dockService.cliamp.visualizer ? String(root.dockService.cliamp.visualizer) : config.visualizer
-          options: Cliamp.visNames()
-          onChanged: function(v) { root.applyCliamp("vis", v); config.set("visualizer", v); }
-        }
-        RowLabel { text: "Cliamp TUI theme (applies to cliamp app)"; width: parent.width }
-        Dropdown {
-          width: parent.width
-          value: config.cliTheme
-          options: ["(none)"].concat(Cliamp.themeNames())
-          onChanged: function(v) { var name = v === "(none)" ? "" : v; config.set("cliTheme", name); if (name !== "") root.applyCliamp("theme", name); }
-        }
-        Row {
-          width: parent.width; spacing: Style.spacing.sm
-          Column { width: (parent.width - parent.spacing) / 2; spacing: 2
-            RowLabel { text: "Audio device"; width: parent.width }
-            TextField { width: parent.width; text: config.audioDevice; placeholderText: "device name / list"; foreground: root.contentForeground; font.family: root.contentFontFamily; onAccepted: { if (text !== "") root.applyCliamp("device", text); config.set("audioDevice", text); } }
-          }
-          Column { width: (parent.width - parent.spacing) / 2; spacing: 2
-            RowLabel { text: "Load playlist"; width: parent.width }
-            TextField { width: parent.width; placeholderText: "playlist name"; foreground: root.contentForeground; font.family: root.contentFontFamily; onAccepted: { if (text !== "") root.applyCliamp("playlist", text); } }
-          }
-        }
-        RowLabel {
-          width: parent.width; wrapMode: Text.WordWrap
-          color: Util.alpha(root.contentForeground, 0.7)
-          font.pixelSize: Style.font.caption
-          text: "Seek/volume/speed apply live. EQ bands 0–9, device list, and providers stay in `cliamp` CLI (eq --band, device list). Poll: " + (config.pollMs) + "ms."
-        }
-
         // ---- LAN Share — synced low-latency multiroom (Snapcast) ----
-        // Role gates the controls: server = cast only, client = listen only.
+        // Kept near the top so it is reachable without scrolling on short
+        // screens / wheel-less pointers. Role gates the controls:
+        // server = cast only, client = listen only.
         SectionHeader { text: "LAN Share (synced rooms)" }
         Row {
           width: parent.width; spacing: Style.spacing.sm
@@ -397,12 +265,164 @@ Panel {
           }
         }
 
+        SectionHeader { text: "Placement & size" }
+        Row {
+          width: parent.width; spacing: Style.spacing.sm
+          Repeater {
+            model: ["left", "right", "bottom"]
+            delegate: WidgetButton { text: modelData; active: config.placement === modelData; onPressed: function() { config.set("placement", modelData); } }
+          }
+        }
+        Row {
+          width: parent.width; spacing: Style.spacing.lg
+          Column { width: (parent.width - parent.spacing) / 2; spacing: 2
+            RowLabel { text: config.placement === "bottom" ? "Tray width (" + config.bottomWidth + ")" : "Side width (" + config.sideWidth + ")"; width: parent.width }
+            PanelSlider {
+              width: parent.width
+              minimum: config.placement === "bottom" ? 560 : 300
+              maximum: config.placement === "bottom" ? 1400 : 640
+              step: 10
+              value: config.placement === "bottom" ? config.bottomWidth : config.sideWidth
+              onMoved: function(v) { config.set(config.placement === "bottom" ? "bottomWidth" : "sideWidth", Math.round(v)); }
+            }
+          }
+          Column { width: (parent.width - parent.spacing) / 2; spacing: 2
+            RowLabel { text: config.placement === "bottom" ? "Tray height (" + config.bottomHeight + ")" : "Side height (" + config.sideHeight + ")"; width: parent.width }
+            PanelSlider {
+              width: parent.width
+              minimum: config.placement === "bottom" ? 400 : 460
+              maximum: config.placement === "bottom" ? 800 : 1000
+              step: 10
+              value: config.placement === "bottom" ? config.bottomHeight : config.sideHeight
+              onMoved: function(v) { config.set(config.placement === "bottom" ? "bottomHeight" : "sideHeight", Math.round(v)); }
+            }
+          }
+        }
+        SwitchRow { label: "Compact mode"; checked: config.compact; onFlipped: config.set("compact", !config.compact) }
+
+        // ---- Activation & motion (mirrors oShelf) ----
+        SectionHeader { text: "Edge handle & motion" }
+        Row {
+          width: parent.width; spacing: Style.spacing.lg
+          Column { width: (parent.width - parent.spacing) / 2; spacing: 2
+            RowLabel { text: "Hover to open (" + config.openDelay + "ms)"; width: parent.width }
+            PanelSlider { width: parent.width; minimum: 150; maximum: 1500; step: 10; value: config.openDelay; onMoved: function(v) { config.set("openDelay", Math.round(v)); } }
+          }
+          Column { width: (parent.width - parent.spacing) / 2; spacing: 2
+            RowLabel { text: "Leave to close (" + config.closeDelay + "ms)"; width: parent.width }
+            PanelSlider { width: parent.width; minimum: 250; maximum: 2500; step: 10; value: config.closeDelay; onMoved: function(v) { config.set("closeDelay", Math.round(v)); } }
+          }
+        }
+        Row {
+          width: parent.width; spacing: Style.spacing.lg
+          Column { width: (parent.width - parent.spacing) / 2; spacing: 2
+            RowLabel { text: "Handle length (" + config.activationLength + ")"; width: parent.width }
+            PanelSlider { width: parent.width; minimum: 80; maximum: 600; step: 5; value: config.activationLength; onMoved: function(v) { config.set("activationLength", Math.round(v)); } }
+          }
+          Column { width: (parent.width - parent.spacing) / 2; spacing: 2
+            RowLabel { text: "Handle depth (" + config.activationDepth + ")"; width: parent.width }
+            PanelSlider { width: parent.width; minimum: 4; maximum: 24; step: 1; value: config.activationDepth; onMoved: function(v) { config.set("activationDepth", Math.round(v)); } }
+          }
+        }
+        RowLabel { text: "Handle position along edge (" + config.activationPosition + "%)"; width: parent.width }
+        PanelSlider { width: parent.width; minimum: 10; maximum: 90; step: 1; value: config.activationPosition; onMoved: function(v) { config.set("activationPosition", Math.round(v)); } }
+        RowLabel { text: "Motion duration (" + config.motionDuration + "ms)"; width: parent.width }
+        PanelSlider { width: parent.width; minimum: 120; maximum: 420; step: 5; value: config.motionDuration; onMoved: function(v) { config.set("motionDuration", Math.round(v)); } }
+        SwitchRow { label: "Steady hover (moving restarts open delay)"; checked: config.steadyHover; onFlipped: config.set("steadyHover", !config.steadyHover) }
+        SwitchRow { label: "Reduced motion"; checked: config.reducedMotion; onFlipped: config.set("reducedMotion", !config.reducedMotion) }
+
+        // ---- Visible sections ----
+        SectionHeader { text: "Dock sections (hide options)" }
+        SwitchRow { label: "Progress / seek bar"; checked: config.showProgress; onFlipped: config.set("showProgress", !config.showProgress) }
+        SwitchRow { label: "Volume slider"; checked: config.showVolume; onFlipped: config.set("showVolume", !config.showVolume) }
+        SwitchRow { label: "Shuffle / repeat / mono"; checked: config.showToggles; onFlipped: config.set("showToggles", !config.showToggles) }
+        SwitchRow { label: "EQ row"; checked: config.showEq; onFlipped: config.set("showEq", !config.showEq) }
+        SwitchRow { label: "Visualizer / speed row"; checked: config.showMeta; onFlipped: config.set("showMeta", !config.showMeta) }
+        SwitchRow { label: "Live visualizer bars"; checked: config.showVis; onFlipped: config.set("showVis", !config.showVis) }
+
+        // ---- Cliamp adjustable options ----
+        SectionHeader { text: "Cliamp options" }
+        RowLabel {
+          width: parent.width; wrapMode: Text.WordWrap
+          text: "Now: " + (root.dockService && root.dockService.cliamp ? Cliamp.trackTitle(root.dockService.cliamp) : "…")
+        }
+        RowLabel { text: "Volume dB (" + config.volumeDb + ") — drag, release to apply"; width: parent.width }
+        PanelSlider {
+          width: parent.width; minimum: -30; maximum: 6; step: 0.5
+          value: root.dockService ? root.dockService.volumeDb : config.volumeDb
+          onMoved: function(v) { if (root.dockService) root.dockService.previewVolume(v); else config.set("volumeDb", Math.round(v * 2) / 2); }
+          onReleased: function(v) { if (root.dockService) root.dockService.commitVolume(v); }
+        }
+        Row {
+          width: parent.width; spacing: Style.spacing.sm
+          WidgetButton { text: "Shuffle: " + Cliamp.shuffleText(root.dockService ? root.dockService.cliamp : null); onPressed: function() { root.applyCliamp("shuffle", "toggle"); } }
+          WidgetButton { text: "Repeat: " + Cliamp.repeatText(root.dockService ? root.dockService.cliamp : null); onPressed: function() { root.applyCliamp("repeat", "cycle"); } }
+          WidgetButton { text: "Mono: " + Cliamp.monoText(root.dockService ? root.dockService.cliamp : null); onPressed: function() { root.applyCliamp("mono", "toggle"); } }
+        }
+        RowLabel { text: "Speed (" + (root.dockService && root.dockService.cliamp && root.dockService.cliamp.speed ? root.dockService.cliamp.speed : config.speed) + "x)"; width: parent.width }
+        PanelSlider {
+          width: parent.width; minimum: 0.25; maximum: 2.0; step: 0.05
+          value: root.dockService && root.dockService.cliamp && root.dockService.cliamp.speed ? Number(root.dockService.cliamp.speed) : config.speed
+          onReleased: function(v) { root.applyCliamp("speed", Math.round(v * 100) / 100); config.set("speed", Math.round(v * 100) / 100); }
+        }
+
+        RowLabel { text: "EQ preset"; width: parent.width }
+        Dropdown {
+          width: parent.width
+          value: root.dockService && root.dockService.cliamp && root.dockService.cliamp.eq_preset ? String(root.dockService.cliamp.eq_preset) : config.eqPreset
+          options: Cliamp.eqPresets()
+          onChanged: function(v) { root.applyCliamp("eqPreset", v); config.set("eqPreset", v); }
+        }
+        RowLabel { text: "Visualizer"; width: parent.width }
+        Dropdown {
+          width: parent.width
+          value: root.dockService && root.dockService.cliamp && root.dockService.cliamp.visualizer ? String(root.dockService.cliamp.visualizer) : config.visualizer
+          options: Cliamp.visNames()
+          onChanged: function(v) { root.applyCliamp("vis", v); config.set("visualizer", v); }
+        }
+        RowLabel { text: "Cliamp TUI theme (applies to cliamp app)"; width: parent.width }
+        Dropdown {
+          width: parent.width
+          value: config.cliTheme
+          options: ["(none)"].concat(Cliamp.themeNames())
+          onChanged: function(v) { var name = v === "(none)" ? "" : v; config.set("cliTheme", name); if (name !== "") root.applyCliamp("theme", name); }
+        }
+        Row {
+          width: parent.width; spacing: Style.spacing.sm
+          Column { width: (parent.width - parent.spacing) / 2; spacing: 2
+            RowLabel { text: "Audio device"; width: parent.width }
+            TextField { width: parent.width; text: config.audioDevice; placeholderText: "device name / list"; foreground: root.contentForeground; font.family: root.contentFontFamily; onAccepted: { if (text !== "") root.applyCliamp("device", text); config.set("audioDevice", text); } }
+          }
+          Column { width: (parent.width - parent.spacing) / 2; spacing: 2
+            RowLabel { text: "Load playlist"; width: parent.width }
+            TextField { width: parent.width; placeholderText: "playlist name"; foreground: root.contentForeground; font.family: root.contentFontFamily; onAccepted: { if (text !== "") root.applyCliamp("playlist", text); } }
+          }
+        }
+        RowLabel {
+          width: parent.width; wrapMode: Text.WordWrap
+          color: Util.alpha(root.contentForeground, 0.7)
+          font.pixelSize: Style.font.caption
+          text: "Seek/volume/speed apply live. EQ bands 0–9, device list, and providers stay in `cliamp` CLI (eq --band, device list). Poll: " + (config.pollMs) + "ms."
+        }
+
+
         Row {
           width: parent.width; spacing: Style.spacing.sm
           WidgetButton { text: "Reset dock settings"; onPressed: function() { config.resetAll(); } }
           WidgetButton { text: "Close"; onPressed: function() { root.close(); } }
         }
       }
+    }
+
+    // Sticky page buttons: same paging as PageUp/PageDown for touchpads
+    // and other wheel-less pointers. Hidden when everything fits.
+    Column {
+      anchors { right: parent.right; bottom: parent.bottom; margins: 8 }
+      spacing: 6
+      z: 10
+      visible: panelScroller.contentHeight > panelScroller.height
+      WidgetButton { text: "PgUp"; tooltipText: "Scroll up a page"; onPressed: function() { root.pagePanel(-1); } }
+      WidgetButton { text: "PgDn"; tooltipText: "Scroll down a page"; onPressed: function() { root.pagePanel(1); } }
     }
   }
 }
