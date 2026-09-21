@@ -29,6 +29,9 @@
 #   lan-share.sh silent-sink              -> create null sink, route cliamp
 #                                            into it (silent room, full
 #                                            stream). Prints {"monitor":...}
+#   lan-share.sh silent-toggle            -> flip room silent <-> speakers
+#                                            (stream unaffected).
+#                                            Prints {"silent":..,"monitor":..}
 #   lan-share.sh listen-start <host> [stream-port [web-port]]
 #                                         -> start snapclient to <host>
 #   lan-share.sh listen-volume <host> <web-port> [percent]
@@ -143,6 +146,45 @@ cmd_silent_sink() {
   printf '{"monitor":"%s","sink":"%s"}\n' "$mon" "$SILENT_SINK"
 }
 
+# True when cliamp currently plays into the silent sink (room is quiet
+# while streaming). False when silent sink missing / cliamp elsewhere.
+room_silent() {
+  have pactl || return 1
+  local idx
+  idx="$(pactl list short sinks 2>/dev/null | awk -v s="$SILENT_SINK" '$2 == s {print $1; exit}')"
+  [ -n "$idx" ] || return 1
+  pactl list sink-inputs 2>/dev/null | awk -v want="$idx" '
+    BEGIN { RS=""; FS="\n" }
+    {
+      sink=""; app=0
+      for (i=1; i<=NF; i++) {
+        if ($i ~ /^\tSink: /) { sink=$i; sub(/^\tSink: /, "", sink) }
+        if ($i ~ /application\.name = / && tolower($i) ~ /cliamp/) { app=1 }
+      }
+      if (app && sink == want) { found=1 }
+    }
+    END { exit !found }'
+}
+
+cmd_silent_toggle() {
+  # Flip the room between silent (cliamp in null sink) and speakers
+  # (cliamp on default sink). Stream keeps full audio either way.
+  # Prints {"silent":true/false,"monitor":"..."}.
+  have pactl || { echo "missing: pactl" >&2; return 3; }
+  if room_silent; then
+    local def; def="$(pactl get-default-sink 2>/dev/null || true)"
+    [ -z "$def" ] && { echo "no default sink" >&2; return 4; }
+    have cliamp || { echo "missing: cliamp" >&2; return 3; }
+    cliamp device "$def" >/dev/null 2>&1 || { echo "cliamp would not switch to $def" >&2; return 4; }
+    printf '{"silent":false,"monitor":"%s.monitor","sink":"%s"}\n' "$def" "$def"
+  else
+    local mon; mon="$(silent_sink_ensure)" || return $?
+    have cliamp || { echo "missing: cliamp" >&2; return 3; }
+    cliamp device "$SILENT_SINK" >/dev/null 2>&1 || { echo "cliamp would not switch to $SILENT_SINK" >&2; return 4; }
+    printf '{"silent":true,"monitor":"%s","sink":"%s"}\n' "$mon" "$SILENT_SINK"
+  fi
+}
+
 alive() { [ -n "${1:-}" ] && kill -0 "$1" 2>/dev/null; }
 
 read_pid() { [ -f "$1" ] && cat "$1" 2>/dev/null | tr -d ' \n' || echo ""; }
@@ -212,8 +254,9 @@ cmd_status() {
   fi
   # shellcheck disable=SC2086
   set -- $(share_ports)
-  printf '{"sharing":%s,"feeder":%s,"listening":%s,"http":%s,"ip":"%s","client_host":"%s","client_port":%s,"http_port":"%s","monitor":"%s","stream_port":%s,"control_port":%s,"web_port":%s,"ports_busy":%s,"client_ok":%s,"listen_volume":%s}\n' \
-    "$sharing" "$feeder" "$listening" "$http" "$ip" "$chost" "$cport" "$hport" "$mon" "$1" "$2" "$3" "$ports_busy" "$client_ok" "$lvol"
+  local room="false"; room_silent 2>/dev/null && room="true"
+  printf '{"sharing":%s,"feeder":%s,"listening":%s,"http":%s,"ip":"%s","client_host":"%s","client_port":%s,"http_port":"%s","monitor":"%s","stream_port":%s,"control_port":%s,"web_port":%s,"ports_busy":%s,"client_ok":%s,"listen_volume":%s,"room_silent":%s}\n' \
+    "$sharing" "$feeder" "$listening" "$http" "$ip" "$chost" "$cport" "$hport" "$mon" "$1" "$2" "$3" "$ports_busy" "$client_ok" "$lvol" "$room"
 }
 
 # --- Per-dock listen volume (Snapcast per-client volume) ---
@@ -489,11 +532,12 @@ case "${1:-}" in
   share-start) cmd_share_start "${2:-}" "${3:-}" "${4:-}" "${5:-}" ;;
   share-stop) cmd_share_stop ;;
   silent-sink) cmd_silent_sink ;;
+  silent-toggle) cmd_silent_toggle ;;
   listen-start) cmd_listen_start "${2:-}" "${3:-}" "${4:-}" ;;
   listen-stop) cmd_listen_stop ;;
   listen-volume) cmd_listen_volume "${2:-}" "${3:-}" "${4:-}" ;;
   http-start) cmd_http_start "${2:-8099}" ;;
   http-stop) cmd_http_stop ;;
   ip) lan_ip; echo ;;
-  *) echo "usage: $0 {check|status --json|share-start [stream [control [web [monitor]]]]|share-stop|silent-sink|listen-start <host> [stream-port [web-port]]|listen-stop|listen-volume <host> <web-port> [percent]|http-start [port]|http-stop|ip}" >&2; exit 2 ;;
+  *) echo "usage: $0 {check|status --json|share-start [stream [control [web [monitor]]]]|share-stop|silent-sink|silent-toggle|listen-start <host> [stream-port [web-port]]|listen-stop|listen-volume <host> <web-port> [percent]|http-start [port]|http-stop|ip}" >&2; exit 2 ;;
 esac

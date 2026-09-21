@@ -141,6 +141,7 @@ function lanShareStartCmd(script, stream, control, web, monitor) {
 }
 function lanShareStopCmd(script) { return [script, "share-stop"]; }
 function lanSilentSinkCmd(script) { return [script, "silent-sink"]; }
+function lanSilentToggleCmd(script) { return [script, "silent-toggle"]; }
 function lanListenStartCmd(script, host, streamPort, webPort) {
   var args = [script, "listen-start", String(host), String(streamPort)];
   if (webPort !== undefined && webPort !== null && String(webPort) !== "")
@@ -170,7 +171,8 @@ function parseLanStatus(raw) {
       controlPort: parseInt(o.control_port, 10) || 1705,
       webPort: parseInt(o.web_port, 10) || 1780,
       portsBusy: !!o.ports_busy, clientOk: !!o.client_ok,
-      listenVolume: (isFinite(lv) && lv >= 0) ? Math.max(0, Math.min(100, lv)) : -1
+      listenVolume: (isFinite(lv) && lv >= 0) ? Math.max(0, Math.min(100, lv)) : -1,
+      roomSilent: !!o.room_silent
     };
   } catch (e) { return null; }
 }
@@ -193,5 +195,12 @@ function parseLanSilentSink(raw) {
     var o = JSON.parse(String(raw || "{}"));
     if (!o.monitor) return null;
     return String(o.monitor);
+  } catch (e) { return null; }
+}
+function parseLanSilentToggle(raw) {
+  try {
+    var o = JSON.parse(String(raw || "{}"));
+    if (!o.monitor && o.silent === undefined) return null;
+    return { silent: !!o.silent, monitor: String(o.monitor || "") };
   } catch (e) { return null; }
 }

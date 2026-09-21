@@ -198,8 +198,9 @@ Panel {
           WidgetButton {
             id: silBtn
             anchors.verticalCenter: parent.verticalCenter
-            text: "Silent setup"
-            onPressed: function() { if (root.dockService) root.dockService.lanSilentSink(); }
+            text: (root.dockService && root.dockService.lanRoomSilent) ? "Room sound" : "Silence"
+            active: root.dockService ? root.dockService.lanRoomSilent : false
+            onPressed: function() { if (root.dockService) root.dockService.toggleSilentRoom(); }
           }
         }
         // Client-side controls (hidden in server mode)

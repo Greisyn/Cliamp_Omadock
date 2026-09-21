@@ -228,6 +228,8 @@ Item {
   property string lanError: ""
   property bool lanPortsBusy: false
   property bool lanClientOk: false
+  // Room silent (cliamp routed to null sink). Polled from the script.
+  property bool lanRoomSilent: false
   property bool lanHaveSnapserver: false
   property bool lanHaveSnapclient: false
   property bool lanHaveFfmpeg: false
@@ -288,6 +290,28 @@ Item {
       }
     });
   }
+  // Room toggle: silent <-> speakers. Stream keeps full audio either way.
+  // Restarts an active share so the new monitor takes effect at once.
+  function toggleSilentRoom() {
+    root.lanError = "";
+    lanRun(Cliamp.lanSilentToggleCmd(root.lanScript), function(out) {
+      var r = Cliamp.parseLanSilentToggle(out);
+      if (r === null) {
+        root.lanNoteError(out);
+        if (root.lanError === "") root.lanError = "room toggle failed";
+        return;
+      }
+      root.lanRoomSilent = r.silent;
+      config.set("shareMonitor", r.silent ? r.monitor : "");
+      if (root.lanSharing) {
+        lanRun(Cliamp.lanShareStopCmd(root.lanScript), function() {
+          root.lanShareStart();
+        });
+      } else {
+        Qt.callLater(root.lanPoll);
+      }
+    });
+  }
   function lanShareStop() { root.lanError = ""; lanRun(Cliamp.lanShareStopCmd(root.lanScript)); }
   function lanListenStart(host) {
     root.lanError = "";
@@ -337,6 +361,7 @@ Item {
           root.lanListening = st.listening; root.lanHttp = st.http;
           root.lanIp = st.ip; root.lanClientHost = st.clientHost;
           root.lanPortsBusy = st.portsBusy; root.lanClientOk = st.clientOk;
+          root.lanRoomSilent = st.roomSilent;
           root.lanClientPort = st.clientPort; root.lanMonitor = st.monitor;
           root.lanStreamPort = st.streamPort; root.lanControlPort = st.controlPort;
           root.lanWebPort = st.webPort;
@@ -417,6 +442,7 @@ Item {
     function settings(): string { root.toggleSettings(); return "settings"; }
     function share(): string { root.lanShareStart(); return "sharing"; }
     function unshare(): string { root.lanShareStop(); return "stopped"; }
+    function silence(): string { root.toggleSilentRoom(); return "toggled"; }
     function lanstatus(): string {
       return JSON.stringify({ sharing: root.lanSharing, feeder: root.lanFeeder,
         listening: root.lanListening, http: root.lanHttp, ip: root.lanIp,
@@ -424,7 +450,7 @@ Item {
         monitor: root.lanMonitor, error: root.lanError,
         role: config.lanRole, streamPort: root.lanStreamPort,
         controlPort: root.lanControlPort, webPort: root.lanWebPort,
-        listenVolume: root.lanListenVolume,
+        listenVolume: root.lanListenVolume, roomSilent: root.lanRoomSilent,
         httpPort: config.lanHttpPort });
     }
     function listen(host: string): string { root.lanListenStart(host); return "listening:" + host; }

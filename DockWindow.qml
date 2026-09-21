@@ -419,6 +419,7 @@ PanelWindow {
                 ? "LISTENING " + (service.lanClientHost !== "" ? service.lanClientHost : "?")
                 : service.lanHttp ? "HTTP :" + cfg.lanHttpPort : "OFF")
               + (cfg.lanRole !== "auto" ? "  [" + cfg.lanRole.toUpperCase() + "]" : "")
+              + (service.lanRoomSilent ? "  · SILENT" : "")
             color: Color.accent
             font.family: Style.fontFamily; font.pixelSize: 10; font.letterSpacing: 1.4
           }
@@ -427,6 +428,7 @@ PanelWindow {
             visible: cfg.lanRole !== "client"
             DockAction { label: service.lanSharing ? "Stop" : "Share"; hint: service.lanSharing ? "Stop LAN share" : "Share this room over LAN"; selected: service.lanSharing; onTriggered: service.lanSharing ? service.lanShareStop() : service.lanShareStart() }
             DockAction { label: service.lanHttp ? "HTTP off" : "HTTP"; hint: "Toggle MP3 fallback stream"; selected: service.lanHttp; onTriggered: service.lanHttp ? service.lanHttpStop() : service.lanHttpStart() }
+            DockAction { label: "Silent"; hint: service.lanRoomSilent ? "Room is silent — restore speakers" : "Silence room (stream continues)"; selected: service.lanRoomSilent; onTriggered: service.toggleSilentRoom() }
           }
           Row {
             width: parent.width; spacing: 6

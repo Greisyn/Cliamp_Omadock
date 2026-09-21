@@ -116,6 +116,7 @@ omarchy-shell local.cliamp-dock show
 omarchy-shell local.cliamp-dock hide
 omarchy-shell local.cliamp-dock status
 omarchy-shell local.cliamp-dock settings    # open settings panel
+omarchy-shell local.cliamp-dock silence     # toggle silent room / speakers
 omarchy-shell local.cliamp-dock share        # start LAN share (Snapcast)
 omarchy-shell local.cliamp-dock lanstatus    # {"sharing":..,"ip":..}
 omarchy-shell local.cliamp-dock listen 10.0.0.212
@@ -153,6 +154,11 @@ Play a playlist on this machine, listen in the bedroom/office in sync.
   this room goes quiet while listeners keep full audio. Or set **Share
   monitor** manually (empty = default sink); takes effect on next Share
   start. Helper: `lan-share.sh silent-sink`.
+- Room toggle: the dock card's **Silent** button (or settings' Silence /
+  Room sound, or `omarchy-shell local.cliamp-dock silence`) flips the
+  room between silent and speakers at any time — the stream keeps full
+  audio either way. Restarts an active share so the new source applies
+  at once; the card shows `· SILENT` while quiet.
   Footer shows `SHARING :<audio>` / `LISTENING` state. Helper:
   `lan-share.sh`
   (`check|status --json|share-start [audio [control [web]]]|share-stop|`
