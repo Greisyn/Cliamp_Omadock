@@ -5,7 +5,8 @@ import qs.Commons
 import qs.Ui
 import "Cliamp.js" as Cliamp
 
-// Settings panel for Cliamp Dock. Opened from the bar icon only.
+// Settings panel for Cliamp Dock. Opened from the bar icon or the dock
+// card's header gear button.
 // All colors come from Color.* / Style.* so omarchy themes repaint it live.
 Panel {
   id: root

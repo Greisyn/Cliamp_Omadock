@@ -169,6 +169,7 @@ PanelWindow {
       }
       Row {
         anchors.right: parent.right; anchors.rightMargin: 16; y: 23; spacing: 2
+        DockAction { icon: "settings"; hint: "Dock settings"; onTriggered: service.toggleSettings() }
         DockAction { icon: "pin"; hint: cfg.keepOpen ? "Unpin (auto-collapse)" : "Pin open"; selected: cfg.keepOpen; onTriggered: cfg.set("keepOpen", !cfg.keepOpen) }
         DockAction { icon: "close"; hint: "Close player"; onTriggered: root.collapse() }
       }

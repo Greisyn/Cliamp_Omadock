@@ -65,6 +65,12 @@ Canvas {
       c.moveTo(7, 3); c.lineTo(15, 3); c.lineTo(14, 10);
       c.lineTo(17, 14); c.lineTo(5, 14); c.lineTo(8, 10); c.closePath();
       c.moveTo(11, 14); c.lineTo(11, 20);
+    } else if (kind === "settings") {
+      for (var i = 0; i < 3; i++) {
+        var y = 5 + i * 6, x = i === 1 ? 14 : 8;
+        c.moveTo(3, y); c.lineTo(x - 2, y); c.moveTo(x + 2, y); c.lineTo(19, y);
+        c.moveTo(x + 2, y); c.arc(x, y, 2, 0, Math.PI * 2);
+      }
     } else if (kind === "note") {
       c.moveTo(13, 4); c.lineTo(13, 14);
       c.moveTo(13, 4); c.bezierCurveTo(16, 5, 18, 7, 18, 10);

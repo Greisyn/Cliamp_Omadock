@@ -328,6 +328,14 @@ Item {
     }
   }
 
+  // ---------------- settings panel opener ----------------
+  // The bar widget registers its panel toggle here so the floating dock
+  // card's header gear button can open settings without a bar dependency.
+  property var settingsOpener: null
+  function toggleSettings() {
+    if (settingsOpener) settingsOpener();
+  }
+
   // ---------------- per-screen windows (oShelf model) ----------------
   Variants {
     id: windows
@@ -356,6 +364,7 @@ Item {
       for (var w of windows.instances) states.push(!!w.expanded);
       return JSON.stringify({ playing: root.playing, title: root.trackTitle, expanded: states });
     }
+    function settings(): string { root.toggleSettings(); return "settings"; }
     function share(): string { root.lanShareStart(); return "sharing"; }
     function unshare(): string { root.lanShareStop(); return "stopped"; }
     function lanstatus(): string {

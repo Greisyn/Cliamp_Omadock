@@ -22,6 +22,17 @@ BarWidget {
   readonly property bool playing: dockService ? !!dockService.playing : false
   readonly property string trackTitle: dockService ? String(dockService.trackTitle || "cliamp") : "cliamp"
 
+  // Lets the floating dock card open this settings panel via its header
+  // gear button (service.toggleSettings()). Re-registered whenever the
+  // service handle or panel changes; the closure guards against teardown.
+  function registerSettingsOpener() {
+    if (!root.dockService) return;
+    root.dockService.settingsOpener = function() {
+      if (panelLoader.item && panelLoader.item.toggle) panelLoader.item.toggle();
+    };
+  }
+  onDockServiceChanged: root.registerSettingsOpener()
+
   // Shape contract for shell.summon/hide/toggle routing, keyboard panel
   // switching, and the bar's open-panel indicator. Bar.findPanelWidget
   // requires open/close/opened on the bar-widget root (mirrors first-party
@@ -36,7 +47,7 @@ BarWidget {
 
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
-  onBarChanged: root.injectPanel()
+  onBarChanged: { root.injectPanel(); root.registerSettingsOpener(); }
   onSettingsChanged: root.injectPanel()
 
   Loader {
@@ -44,7 +55,7 @@ BarWidget {
     active: true
     source: Qt.resolvedUrl("Panel.qml")
     visible: false
-    onLoaded: { root.injectPanel(); Qt.callLater(root.injectPanel); }
+    onLoaded: { root.injectPanel(); Qt.callLater(root.injectPanel); root.registerSettingsOpener(); }
   }
 
   WidgetButton {
@@ -57,7 +68,7 @@ BarWidget {
     hasVisualContent: true
     active: false
     useActiveColor: false
-    tooltipText: root.trackTitle + (root.playing ? " (playing)" : " (paused)") + "\nLeft click: play/pause\nRight click or Shift+click: settings"
+    tooltipText: root.trackTitle + (root.playing ? " (playing)" : " (paused)") + "\nLeft click: play/pause\nRight click: settings"
 
     OpticalGlyph {
       anchors.centerIn: parent
@@ -77,25 +88,6 @@ BarWidget {
       }
       if (b === Qt.LeftButton) {
         if (root.dockService) root.dockService.run("toggle");
-      }
-    }
-  }
-
-  // Shift+Left opens settings as an alternate to right-click.
-  // WidgetButton only forwards the button (not modifiers), so this
-  // transparent layer sits on top, accepts Shift+press, and lets all
-  // other presses fall through to the button below.
-  MouseArea {
-    anchors.fill: parent
-    acceptedButtons: Qt.LeftButton
-    hoverEnabled: false
-    cursorShape: Qt.PointingHandCursor
-    onPressed: function(mouse) {
-      if (mouse.modifiers & Qt.ShiftModifier) {
-        mouse.accepted = true;
-        if (panelLoader.item && panelLoader.item.toggle) panelLoader.item.toggle();
-      } else {
-        mouse.accepted = false;
       }
     }
   }
