@@ -22,9 +22,13 @@
 # Usage:
 #   lan-share.sh check                    -> JSON {snapserver,snapclient,ffmpeg}
 #   lan-share.sh status --json            -> JSON {sharing,listening,...}
-#   lan-share.sh share-start [stream [control [web]]]
+#   lan-share.sh share-start [stream [control [web [monitor]]]]
 #                                         -> start snapserver + ffmpeg feeder
+#                                            (empty monitor = default sink)
 #   lan-share.sh share-stop               -> stop both
+#   lan-share.sh silent-sink              -> create null sink, route cliamp
+#                                            into it (silent room, full
+#                                            stream). Prints {"monitor":...}
 #   lan-share.sh listen-start <host> [stream-port [web-port]]
 #                                         -> start snapclient to <host>
 #   lan-share.sh listen-volume <host> <web-port> [percent]
@@ -51,6 +55,8 @@ CLIENT_LOG="$CACHE/snapclient.log"
 HTTP_LOG="$CACHE/cliamp-http.log"
 PORTS_FILE="$CACHE/snapserver.ports"
 CLIENT_TARGET="$CACHE/snapclient.target"
+SHARE_MON_FILE="$CACHE/share.monitor"
+SILENT_SINK="cliamp-silent"
 
 DEF_STREAM=1704
 DEF_CONTROL=1705
@@ -97,6 +103,44 @@ default_monitor() {
     return
   fi
   echo ""
+}
+
+# Monitor actually being shared (persisted at share-start), else default.
+active_monitor() {
+  local spid; spid="$(read_pid "$SERVER_PID")"
+  if alive "$spid" && [ -f "$SHARE_MON_FILE" ]; then
+    cat "$SHARE_MON_FILE" 2>/dev/null
+  else
+    default_monitor
+  fi
+}
+
+monitor_exists() {
+  # $1 = monitor source name; true if Pulse/PipeWire has it right now.
+  pactl list short sources 2>/dev/null | awk -v m="$1" '$2 == m {found=1} END {exit !found}'
+}
+
+# Ensure our silent sink exists (stream without local playback) and
+# print its monitor name.
+silent_sink_ensure() {
+  have pactl || { echo "missing: pactl" >&2; return 3; }
+  if ! monitor_exists "${SILENT_SINK}.monitor"; then
+    pactl load-module module-null-sink "sink_name=$SILENT_SINK" "sink_properties=device.description=$SILENT_SINK" >/dev/null || return 4
+    sleep 1
+  fi
+  monitor_exists "${SILENT_SINK}.monitor" || { echo "silent sink failed to appear" >&2; return 4; }
+  printf '%s.monitor' "$SILENT_SINK"
+}
+
+cmd_silent_sink() {
+  # Route cliamp into a null sink so the room stays silent while the
+  # stream keeps full audio. Idempotent. Prints {"monitor":...}.
+  have pactl || { echo "missing: pactl" >&2; return 3; }
+  local mon; mon="$(silent_sink_ensure)" || return $?
+  if have cliamp; then
+    cliamp device "$SILENT_SINK" >/dev/null 2>&1 || true
+  fi
+  printf '{"monitor":"%s","sink":"%s"}\n' "$mon" "$SILENT_SINK"
 }
 
 alive() { [ -n "${1:-}" ] && kill -0 "$1" 2>/dev/null; }
@@ -157,7 +201,7 @@ cmd_status() {
     chost="$(cat "$CACHE/snapclient.host" 2>/dev/null)"
   fi
   local hport="$DEF_HTTP"; [ -f "$CACHE/cliamp-http.port" ] && hport="$(cat "$CACHE/cliamp-http.port" 2>/dev/null)"
-  local mon; mon="$(default_monitor)"
+  local mon; mon="$(active_monitor)"
   # Per-dock listen volume (this machine's client volume on the sharer).
   # -1 when not listening / unreachable; queried with a short timeout so
   # a dead sharer never stalls status.
@@ -239,7 +283,9 @@ cmd_listen_volume() {
 }
 
 cmd_share_start() {
-  # args: [stream_port [control_port [web_port]]]
+  # args: [stream_port [control_port [web_port [monitor]]]]
+  # Empty monitor = default sink monitor. A missing silent-sink monitor
+  # is auto-created; any other missing monitor is an error.
   local stream control web
   stream="$(valid_port "${1:-}" "$DEF_STREAM")"
   control="$(valid_port "${2:-}" "$DEF_CONTROL")"
@@ -258,8 +304,17 @@ cmd_share_start() {
     echo "  $0 share-stop" >&2
     return 6
   fi
-  local mon; mon="$(default_monitor)"
-  [ -z "$mon" ] && { echo "no Pulse/PipeWire monitor source found" >&2; return 4; }
+  local mon; mon="${4:-}"
+  if [ -z "$mon" ]; then mon="$(default_monitor)"; fi
+  if ! monitor_exists "$mon"; then
+    if [ "$mon" = "${SILENT_SINK}.monitor" ]; then
+      mon="$(silent_sink_ensure)" || return $?
+    else
+      echo "monitor not found: $mon (run Silent setup, or clear Share monitor)" >&2
+      return 4
+    fi
+  fi
+  printf '%s' "$mon" > "$SHARE_MON_FILE"
 
   # Let snapserver create the FIFO itself (mode=create is the default);
   # pre-remove any stale pipe/file so creation succeeds. FIFO lives in
@@ -321,6 +376,7 @@ cmd_share_stop() {
   # never matches its own command line when run from a shell whose
   # history/cmdline contains the pattern.
   pkill -f "[f]fmpeg.*snapfifo" 2>/dev/null || true
+  rm -f "$SHARE_MON_FILE"
   echo "share stopped"
   return $rc
 }
@@ -406,7 +462,7 @@ cmd_http_start() {
   have ffmpeg || { echo "missing: ffmpeg" | tee /dev/stderr; return 3; }
   local hpid; hpid="$(read_pid "$HTTP_PID")"
   if alive "$hpid"; then echo "http already on :$port (pid $hpid)"; return 0; fi
-  local mon; mon="$(default_monitor)"
+  local mon; mon="$(active_monitor)"
   [ -z "$mon" ] && { echo "no monitor source found" >&2; return 4; }
   printf '%s' "$port" > "$CACHE/cliamp-http.port"
   # ffmpeg built-in listen-mode HTTP server (single-threaded, LAN fine).
@@ -430,13 +486,14 @@ cmd_http_stop() {
 case "${1:-}" in
   check) cmd_check ;;
   status) shift; [ "${1:-}" = "--json" ] && cmd_status || cmd_status ;;
-  share-start) cmd_share_start "${2:-}" "${3:-}" "${4:-}" ;;
+  share-start) cmd_share_start "${2:-}" "${3:-}" "${4:-}" "${5:-}" ;;
   share-stop) cmd_share_stop ;;
+  silent-sink) cmd_silent_sink ;;
   listen-start) cmd_listen_start "${2:-}" "${3:-}" "${4:-}" ;;
   listen-stop) cmd_listen_stop ;;
   listen-volume) cmd_listen_volume "${2:-}" "${3:-}" "${4:-}" ;;
   http-start) cmd_http_start "${2:-8099}" ;;
   http-stop) cmd_http_stop ;;
   ip) lan_ip; echo ;;
-  *) echo "usage: $0 {check|status --json|share-start [stream [control [web]]]|share-stop|listen-start <host> [stream-port [web-port]]|listen-stop|listen-volume <host> <web-port> [percent]|http-start [port]|http-stop|ip}" >&2; exit 2 ;;
+  *) echo "usage: $0 {check|status --json|share-start [stream [control [web [monitor]]]]|share-stop|silent-sink|listen-start <host> [stream-port [web-port]]|listen-stop|listen-volume <host> <web-port> [percent]|http-start [port]|http-stop|ip}" >&2; exit 2 ;;
 esac

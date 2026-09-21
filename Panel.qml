@@ -181,6 +181,27 @@ Panel {
             }
           }
         }
+        // Share source (hidden in client mode). Empty = default sink.
+        // "Silent setup" routes cliamp into a null sink so this room stays
+        // quiet while the stream keeps full audio, then selects it here.
+        Row {
+          width: parent.width; spacing: Style.spacing.sm
+          visible: config.lanRole !== "client"
+          Column { width: parent.width - silBtn.width - parent.spacing; spacing: 2
+            RowLabel { text: "Share monitor (empty = default sink)"; width: parent.width }
+            TextField {
+              width: parent.width; text: config.shareMonitor; placeholderText: "default sink monitor";
+              foreground: root.contentForeground; font.family: root.contentFontFamily;
+              onAccepted: { config.set("shareMonitor", text.trim()); }
+            }
+          }
+          WidgetButton {
+            id: silBtn
+            anchors.verticalCenter: parent.verticalCenter
+            text: "Silent setup"
+            onPressed: function() { if (root.dockService) root.dockService.lanSilentSink(); }
+          }
+        }
         // Client-side controls (hidden in server mode)
         Row {
           width: parent.width; spacing: Style.spacing.sm

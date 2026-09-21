@@ -148,6 +148,11 @@ Play a playlist on this machine, listen in the bedroom/office in sync.
 - Panel section "LAN Share (synced rooms)" (near the top of the settings
   panel): **Share this room** publishes
   the default-sink monitor via Snapcast. **Listen** joins another sharer.
+- Silent room (stream without local playback): **Silent setup** routes
+  cliamp into a null sink and selects its monitor as the share source —
+  this room goes quiet while listeners keep full audio. Or set **Share
+  monitor** manually (empty = default sink); takes effect on next Share
+  start. Helper: `lan-share.sh silent-sink`.
   Footer shows `SHARING :<audio>` / `LISTENING` state. Helper:
   `lan-share.sh`
   (`check|status --json|share-start [audio [control [web]]]|share-stop|`

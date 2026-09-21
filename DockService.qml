@@ -269,8 +269,23 @@ Item {
   function lanShareStart() {
     root.lanError = "";
     lanRun(Cliamp.lanShareStartCmd(root.lanScript,
-      config.lanStreamPort, config.lanControlPort, config.lanWebPort), function(out) {
+      config.lanStreamPort, config.lanControlPort, config.lanWebPort,
+      config.shareMonitor), function(out) {
       root.lanNoteError(out);
+    });
+  }
+  // Silent-room setup: null sink + route cliamp into it, then remember it
+  // as the share monitor so the room stays quiet while the stream plays on.
+  function lanSilentSink() {
+    root.lanError = "";
+    lanRun(Cliamp.lanSilentSinkCmd(root.lanScript), function(out) {
+      var mon = Cliamp.parseLanSilentSink(out);
+      if (mon === null) {
+        root.lanNoteError(out);
+        if (root.lanError === "") root.lanError = "silent setup failed";
+      } else {
+        config.set("shareMonitor", mon);
+      }
     });
   }
   function lanShareStop() { root.lanError = ""; lanRun(Cliamp.lanShareStopCmd(root.lanScript)); }

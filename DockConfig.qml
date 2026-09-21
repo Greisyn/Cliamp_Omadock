@@ -64,6 +64,8 @@ Item {
   property int lanControlPort: 1705  // Snapcast control (JSON-RPC, not for snapclient)
   property int lanWebPort: 1780      // Snapcast web/RPC
   property int lanHttpPort: 8099  // ffmpeg MP3 fallback port
+  property string shareMonitor: ""  // share source: "" = default sink,
+                                    // "cliamp-silent.monitor" = silent room
 
   property bool loaded: false
   property string lastWritten: ""
@@ -92,7 +94,8 @@ Item {
       speed: 1.0, eqPreset: "Custom", visualizer: "ClassicPeak",
       cliTheme: "", audioDevice: "", pollMs: 1500,
       lanRole: "auto", lanHost: "", lanStreamPort: 1704,
-      lanControlPort: 1705, lanWebPort: 1780, lanHttpPort: 8099
+      lanControlPort: 1705, lanWebPort: 1780, lanHttpPort: 8099,
+      shareMonitor: ""
     };
   }
 
@@ -152,6 +155,7 @@ Item {
     root.lanControlPort = clampPort(p.lanControlPort, 1705);
     root.lanWebPort = clampPort(p.lanWebPort, 1780);
     root.lanHttpPort = clampPort(p.lanHttpPort, 8099);
+    if (p.shareMonitor !== undefined) root.shareMonitor = String(p.shareMonitor);
     root.loaded = true;
   }
 
@@ -173,7 +177,8 @@ Item {
       audioDevice: root.audioDevice, pollMs: root.pollMs,
       lanRole: root.lanRole, lanHost: root.lanHost,
       lanStreamPort: root.lanStreamPort, lanControlPort: root.lanControlPort,
-      lanWebPort: root.lanWebPort, lanHttpPort: root.lanHttpPort
+      lanWebPort: root.lanWebPort, lanHttpPort: root.lanHttpPort,
+      shareMonitor: root.shareMonitor
     };
   }
 

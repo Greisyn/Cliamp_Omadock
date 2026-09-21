@@ -133,10 +133,14 @@ function lanScriptSuffix() {
 }
 function lanCheckCmd(script) { return [script, "check"]; }
 function lanStatusCmd(script) { return [script, "status", "--json"]; }
-function lanShareStartCmd(script, stream, control, web) {
-  return [script, "share-start", String(stream), String(control), String(web)];
+function lanShareStartCmd(script, stream, control, web, monitor) {
+  var args = [script, "share-start", String(stream), String(control), String(web)];
+  if (monitor !== undefined && monitor !== null && String(monitor) !== "")
+    args.push(String(monitor));
+  return args;
 }
 function lanShareStopCmd(script) { return [script, "share-stop"]; }
+function lanSilentSinkCmd(script) { return [script, "silent-sink"]; }
 function lanListenStartCmd(script, host, streamPort, webPort) {
   var args = [script, "listen-start", String(host), String(streamPort)];
   if (webPort !== undefined && webPort !== null && String(webPort) !== "")
@@ -182,5 +186,12 @@ function parseLanCheck(raw) {
   try {
     var o = JSON.parse(String(raw || "{}"));
     return { snapserver: !!o.snapserver, snapclient: !!o.snapclient, ffmpeg: !!o.ffmpeg };
+  } catch (e) { return null; }
+}
+function parseLanSilentSink(raw) {
+  try {
+    var o = JSON.parse(String(raw || "{}"));
+    if (!o.monitor) return null;
+    return String(o.monitor);
   } catch (e) { return null; }
 }
