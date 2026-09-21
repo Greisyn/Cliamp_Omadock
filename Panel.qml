@@ -151,7 +151,7 @@ Panel {
             var s = root.dockService;
             if (s.lanSharing) return "SHARING from " + (s.lanIp !== "" ? s.lanIp : "this machine")
               + " :" + s.lanStreamPort + "/:" + s.lanControlPort
-              + " — clients: snapclient -h " + (s.lanIp !== "" ? s.lanIp : "<this-ip>") + " -p " + s.lanControlPort;
+              + " — clients: snapclient -h " + (s.lanIp !== "" ? s.lanIp : "<this-ip>") + " -p " + s.lanStreamPort;
             if (s.lanListening) return "LISTENING to " + (s.lanClientHost !== "" ? s.lanClientHost : config.lanHost)
               + ":" + s.lanClientPort;
             if (s.lanHttp) return "HTTP fallback live on :" + config.lanHttpPort;
@@ -265,8 +265,8 @@ Panel {
             }
             var t = "Synced Snapcast: install on sharer + listeners: yay -S snapcast. ";
             t += "Open TCP " + config.lanStreamPort + "/" + config.lanControlPort + "/" + config.lanWebPort + " on the sharer. ";
-            t += "Bedroom cmd: snapclient -h " + (root.dockService && root.dockService.lanIp !== "" ? root.dockService.lanIp : "10.0.0.212") + " -p " + config.lanControlPort + ". ";
-            t += "Ports apply on next Share start; listeners must use the sharer's control port. ";
+            t += "Bedroom cmd: snapclient -h " + (root.dockService && root.dockService.lanIp !== "" ? root.dockService.lanIp : "10.0.0.212") + " -p " + config.lanStreamPort + ". ";
+            t += "Ports apply on next Share start; listeners must use the sharer's stream port. ";
             t += "HTTP fallback plays in any browser at http://" + (root.dockService && root.dockService.lanIp !== "" ? root.dockService.lanIp : "<sharer-ip>") + ":" + config.lanHttpPort + "/cliamp.mp3 (~2s delay).";
             if (miss.length > 0) t += " Missing here: " + miss.join(", ") + ".";
             if (root.dockService && root.dockService.lanError !== "") t += " Err: " + root.dockService.lanError;

@@ -61,7 +61,7 @@ Item {
   property string lanRole: "auto"
   property string lanHost: ""     // listen target, e.g. 10.0.0.212
   property int lanStreamPort: 1704   // Snapcast audio
-  property int lanControlPort: 1705  // Snapcast control (clients connect here)
+  property int lanControlPort: 1705  // Snapcast control (JSON-RPC, not for snapclient)
   property int lanWebPort: 1780      // Snapcast web/RPC
   property int lanHttpPort: 8099  // ffmpeg MP3 fallback port
 

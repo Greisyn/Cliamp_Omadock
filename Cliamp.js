@@ -137,8 +137,8 @@ function lanShareStartCmd(script, stream, control, web) {
   return [script, "share-start", String(stream), String(control), String(web)];
 }
 function lanShareStopCmd(script) { return [script, "share-stop"]; }
-function lanListenStartCmd(script, host, controlPort) {
-  return [script, "listen-start", String(host), String(controlPort)];
+function lanListenStartCmd(script, host, streamPort) {
+  return [script, "listen-start", String(host), String(streamPort)];
 }
 function lanListenStopCmd(script) { return [script, "listen-stop"]; }
 function lanHttpStartCmd(script, port) { return [script, "http-start", String(port)]; }
@@ -150,11 +150,12 @@ function parseLanStatus(raw) {
     return {
       sharing: !!o.sharing, feeder: !!o.feeder, listening: !!o.listening,
       http: !!o.http, ip: String(o.ip || ""), clientHost: String(o.client_host || ""),
-      clientPort: parseInt(o.client_port, 10) || 1705,
+      clientPort: parseInt(o.client_port, 10) || 1704,
       httpPort: String(o.http_port || "8099"), monitor: String(o.monitor || ""),
       streamPort: parseInt(o.stream_port, 10) || 1704,
       controlPort: parseInt(o.control_port, 10) || 1705,
-      webPort: parseInt(o.web_port, 10) || 1780
+      webPort: parseInt(o.web_port, 10) || 1780,
+      portsBusy: !!o.ports_busy, clientOk: !!o.client_ok
     };
   } catch (e) { return null; }
 }

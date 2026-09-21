@@ -203,10 +203,9 @@ Item {
   }
 
   // ---------------- LAN share (Snapcast synced, low-latency) ----------------
-  // Role comes from config.lanRole: "server" casts only, "client" listens
-  // only, "auto" does both. Ports are configurable (defaults: audio 1704,
-  // control 1705, web 1780). Bedroom/office clients run
-  // `snapclient -h <host> -p <control>` — or this dock's Listen mode.
+  // Single-mode: share (server) XOR listen (client). Ports are configurable
+  // (defaults: stream/audio 1704, control/JSON-RPC 1705, web 1780).
+  // snapclient ALWAYS dials the stream port: `snapclient tcp://<host>:1704`.
   // HTTP fallback: ffmpeg MP3 on :lanHttpPort for any browser/player.
   readonly property string lanScript: Quickshell.env("HOME") + Cliamp.lanScriptSuffix()
   property bool lanSharing: false
@@ -215,12 +214,14 @@ Item {
   property bool lanHttp: false
   property string lanIp: ""
   property string lanClientHost: ""
-  property int lanClientPort: 1705
+  property int lanClientPort: 1704
   property int lanStreamPort: 1704
   property int lanControlPort: 1705
   property int lanWebPort: 1780
   property string lanMonitor: ""
   property string lanError: ""
+  property bool lanPortsBusy: false
+  property bool lanClientOk: false
   property bool lanHaveSnapserver: false
   property bool lanHaveSnapclient: false
   property bool lanHaveFfmpeg: false
@@ -250,11 +251,20 @@ Item {
         root.lanError = "lan helper exited " + code + " (need snapcast? yay -S snapcast)";
     }
   }
+  function lanNoteError(out) {
+    var t = String(out || "").trim();
+    if (t === "") return;
+    var l = t.toLowerCase();
+    if (l.indexOf("missing") >= 0 || l.indexOf("error") >= 0
+        || l.indexOf("cannot reach") >= 0 || l.indexOf("failed") >= 0
+        || l.indexOf("ports busy") >= 0 || l.indexOf("no pulse") >= 0
+        || l.indexOf("no monitor") >= 0) root.lanError = t.split("\n").slice(-3).join(" ");
+  }
   function lanShareStart() {
     root.lanError = "";
     lanRun(Cliamp.lanShareStartCmd(root.lanScript,
       config.lanStreamPort, config.lanControlPort, config.lanWebPort), function(out) {
-      if (out.toLowerCase().indexOf("missing") >= 0) root.lanError = out.trim();
+      root.lanNoteError(out);
     });
   }
   function lanShareStop() { root.lanError = ""; lanRun(Cliamp.lanShareStopCmd(root.lanScript)); }
@@ -263,15 +273,15 @@ Item {
     var h = String(host || config.lanHost || "").trim();
     if (h === "") { root.lanError = "enter host IP first"; return; }
     config.set("lanHost", h);
-    lanRun(Cliamp.lanListenStartCmd(root.lanScript, h, config.lanControlPort), function(out) {
-      if (out.toLowerCase().indexOf("missing") >= 0) root.lanError = out.trim();
+    lanRun(Cliamp.lanListenStartCmd(root.lanScript, h, config.lanStreamPort), function(out) {
+      root.lanNoteError(out);
     });
   }
   function lanListenStop() { root.lanError = ""; lanRun(Cliamp.lanListenStopCmd(root.lanScript)); }
   function lanHttpStart() {
     root.lanError = "";
     lanRun(Cliamp.lanHttpStartCmd(root.lanScript, config.lanHttpPort), function(out) {
-      if (out.toLowerCase().indexOf("missing") >= 0) root.lanError = out.trim();
+      root.lanNoteError(out);
     });
   }
   function lanHttpStop() { root.lanError = ""; lanRun(Cliamp.lanHttpStopCmd(root.lanScript)); }
@@ -291,6 +301,7 @@ Item {
           root.lanSharing = st.sharing; root.lanFeeder = st.feeder;
           root.lanListening = st.listening; root.lanHttp = st.http;
           root.lanIp = st.ip; root.lanClientHost = st.clientHost;
+          root.lanPortsBusy = st.portsBusy; root.lanClientOk = st.clientOk;
           root.lanClientPort = st.clientPort; root.lanMonitor = st.monitor;
           root.lanStreamPort = st.streamPort; root.lanControlPort = st.controlPort;
           root.lanWebPort = st.webPort;

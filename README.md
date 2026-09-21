@@ -138,21 +138,21 @@ Play a playlist on this machine, listen in the bedroom/office in sync.
 - Ports (all switchable in the panel, applied on next Share start):
   audio `lanStreamPort` (1704), control `lanControlPort` (1705),
   web `lanWebPort` (1780), HTTP fallback `lanHttpPort` (8099).
-  Listeners must use the sharer's control port
-  (`snapclient -h <sharer-ip> -p <control>`).
+  Listeners must use the sharer's STREAM port
+  (`snapclient tcp://<sharer-ip>:1704`).
 - Panel section "LAN Share (synced rooms)" (near the top of the settings
   panel): **Share this room** publishes
   the default-sink monitor via Snapcast. **Listen** joins another sharer.
   Footer shows `SHARING :<audio>` / `LISTENING` state. Helper:
   `lan-share.sh`
   (`check|status --json|share-start [audio [control [web]]]|share-stop|`
-  `listen-start <host> [control-port]|listen-stop|http-start [port]|`
-  `http-stop`).
+  `listen-start <host> [stream-port]|listen-stop|http-start [port]|`
+  `http-stop`). Share and Listen are single-mode (starting one stops the other).
 - Deps on sharer AND listeners: `yay -S snapcast` (ffmpeg already present).
   Open the three Snapcast TCP ports on the sharer
   (e.g. `sudo ufw allow 1704,1705,1780/tcp`, adjusted if you changed ports).
   No root needed otherwise; binds LAN only.
-- Bedroom/office laptop (any distro): `snapclient -h 10.0.0.212 -p 1705`
+- Bedroom/office laptop (any distro): `snapclient tcp://10.0.0.212:1704`
   (use the sharer's IP/port from `lanstatus`). All Snapcast clients stay
   sample-synced; per-client latency trim via Snapcast web/app if needed.
 - Fallback: **HTTP fallback** serves `http://<sharer>:8099/cliamp.mp3`

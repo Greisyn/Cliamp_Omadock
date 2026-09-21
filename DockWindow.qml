@@ -434,7 +434,7 @@ PanelWindow {
             DockAction { label: service.lanListening ? "Stop" : "Listen"; hint: service.lanListening ? "Stop listening" : ("Listen to " + (cfg.lanHost !== "" ? cfg.lanHost : "sharer")); selected: service.lanListening; onTriggered: service.lanListening ? service.lanListenStop() : service.lanListenStart(cfg.lanHost) }
             Text {
               textFormat: Text.PlainText
-              text: (cfg.lanHost !== "" ? cfg.lanHost : "set host in settings") + " :" + cfg.lanControlPort
+              text: (cfg.lanHost !== "" ? cfg.lanHost : "set host in settings") + " :" + cfg.lanStreamPort
               color: Util.alpha(Color.foreground, 0.55)
               font.family: "monospace"; font.pixelSize: 11
               anchors.verticalCenter: parent.verticalCenter

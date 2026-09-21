@@ -11,9 +11,13 @@
 #   $HOME/.cache/cliamp-dock/snapfifo        PCM pipe snapserver reads
 #   $HOME/.cache/cliamp-dock/snapserver.conf generated config
 #   $HOME/.cache/cliamp-dock/snapserver.ports  chosen ports "stream control web"
-#   $HOME/.cache/cliamp-dock/snapclient.target "host control-port"
+#   $HOME/.cache/cliamp-dock/snapclient.target "host stream-port"
 #   $HOME/.cache/cliamp-dock/*.pid           daemon pids
 #   $HOME/.cache/cliamp-dock/*.log           daemon logs
+#
+# Single-mode: share (server) and listen (client) are mutually exclusive;
+# starting one stops the other. snapclient always dials the STREAM port
+# (default 1704); the control port (default 1705) is JSON-RPC only.
 #
 # Usage:
 #   lan-share.sh check                    -> JSON {snapserver,snapclient,ffmpeg}
@@ -21,7 +25,7 @@
 #   lan-share.sh share-start [stream [control [web]]]
 #                                         -> start snapserver + ffmpeg feeder
 #   lan-share.sh share-stop               -> stop both
-#   lan-share.sh listen-start <host> [control-port]
+#   lan-share.sh listen-start <host> [stream-port]
 #                                         -> start snapclient to <host>
 #   lan-share.sh listen-stop
 #   lan-share.sh http-start [port]        -> ffmpeg MP3 listen-mode fallback
@@ -100,6 +104,12 @@ port_open() {
   (exec 3<>/dev/tcp/127.0.0.1/$1) 2>/dev/null
 }
 
+tcp_reachable() {
+  # $1 = host, $2 = port; true if TCP connects within ~3s
+  local host="$1" port="$2"
+  timeout 3 bash -c "</dev/tcp/$host/$port" 2>/dev/null
+}
+
 cmd_check() {
   local s="false" c="false" f="false"
   have snapserver && s="true"
@@ -118,17 +128,25 @@ cmd_status() {
   local feeder="false"; alive "$fpid" && feeder="true"
   alive "$cpid" && listening="true"
   alive "$hpid" && http="true"
-  # if pidfile stale but ports actually serving, still report sharing.
+  # Dock-owned sharing only. A foreign server (e.g. system snapserver.service
+  # on the same ports) is reported separately as ports_busy so the UI does
+  # not misread it as dock sharing.
   # shellcheck disable=SC2086
   set -- $(share_ports); local sp="$1" cp="$2"
+  local ports_busy="false"
   if [ "$sharing" = "false" ] && have snapserver; then
-    if port_open "$sp" && port_open "$cp"; then sharing="true"; fi
+    if port_open "$sp" && port_open "$cp"; then ports_busy="true"; fi
+  fi
+  # client_ok: pid alive AND handshake completed (ServerSettings seen).
+  local client_ok="false"
+  if [ "$listening" = "true" ] && [ -f "$CLIENT_LOG" ]; then
+    grep -q "ServerSettings" "$CLIENT_LOG" 2>/dev/null && client_ok="true"
   fi
   local ip; ip="$(lan_ip)"
-  local chost="" cport="$DEF_CONTROL"
+  local chost="" cport="$DEF_STREAM"
   if [ -f "$CLIENT_TARGET" ]; then
     # shellcheck disable=SC2086
-    set -- $(cat "$CLIENT_TARGET" 2>/dev/null); chost="${1:-}"; cport="$(valid_port "${2:-}" "$DEF_CONTROL")"
+    set -- $(cat "$CLIENT_TARGET" 2>/dev/null); chost="${1:-}"; cport="$(valid_port "${2:-}" "$DEF_STREAM")"
   elif [ -f "$CACHE/snapclient.host" ]; then
     # legacy file (host only) from earlier dock versions
     chost="$(cat "$CACHE/snapclient.host" 2>/dev/null)"
@@ -137,8 +155,8 @@ cmd_status() {
   local mon; mon="$(default_monitor)"
   # shellcheck disable=SC2086
   set -- $(share_ports)
-  printf '{"sharing":%s,"feeder":%s,"listening":%s,"http":%s,"ip":"%s","client_host":"%s","client_port":%s,"http_port":"%s","monitor":"%s","stream_port":%s,"control_port":%s,"web_port":%s}\n' \
-    "$sharing" "$feeder" "$listening" "$http" "$ip" "$chost" "$cport" "$hport" "$mon" "$1" "$2" "$3"
+  printf '{"sharing":%s,"feeder":%s,"listening":%s,"http":%s,"ip":"%s","client_host":"%s","client_port":%s,"http_port":"%s","monitor":"%s","stream_port":%s,"control_port":%s,"web_port":%s,"ports_busy":%s,"client_ok":%s}\n' \
+    "$sharing" "$feeder" "$listening" "$http" "$ip" "$chost" "$cport" "$hport" "$mon" "$1" "$2" "$3" "$ports_busy" "$client_ok"
 }
 
 cmd_share_start() {
@@ -151,6 +169,16 @@ cmd_share_start() {
   have ffmpeg || { echo "missing: ffmpeg" | tee /dev/stderr; return 3; }
   local spid; spid="$(read_pid "$SERVER_PID")"
   if alive "$spid"; then echo "already sharing (snapserver pid $spid)"; return 0; fi
+  # Single-mode: listening and sharing fight over audio focus; stop listener.
+  local cpid0; cpid0="$(read_pid "$CLIENT_PID")"
+  if alive "$cpid0"; then echo "stopping listen to share (single mode)"; cmd_listen_stop >/dev/null 2>&1 || true; fi
+  # Fail fast if something else (e.g. system snapserver.service) owns the ports.
+  if port_open "$stream" || port_open "$control" || port_open "$web"; then
+    echo "ERROR: ports busy (:$stream/:$control/:$web). Stop the other server first:" >&2
+    echo "  sudo systemctl disable --now snapserver" >&2
+    echo "  $0 share-stop" >&2
+    return 6
+  fi
   local mon; mon="$(default_monitor)"
   [ -z "$mon" ] && { echo "no Pulse/PipeWire monitor source found" >&2; return 4; }
 
@@ -200,7 +228,7 @@ EOF
   echo $! > "$FEEDER_PID"
   echo "sharing: snapserver pid $(cat "$SERVER_PID"), feeder pid $(cat "$FEEDER_PID"), monitor $mon"
   echo "sharing: stream :$stream control :$control web :$web"
-  echo "clients: snapclient -h $(lan_ip) -p $control"
+  echo "clients: snapclient tcp://$(lan_ip):$stream"
 }
 
 cmd_share_stop() {
@@ -219,17 +247,69 @@ cmd_share_stop() {
 }
 
 cmd_listen_start() {
+  # Single-mode client: snapclient ALWAYS talks to the STREAM port (default
+  # 1704), never the control port (default 1705). Control is JSON-RPC;
+  # dialing it fails with hello timeout / unknown message type.
   local host="${1:-}"
-  [ -z "$host" ] && { echo "usage: $0 listen-start <host-ip> [control-port]" >&2; return 2; }
-  local cport; cport="$(valid_port "${2:-}" "$DEF_CONTROL")"
+  [ -z "$host" ] && { echo "usage: $0 listen-start <host-ip> [stream-port]" >&2; return 2; }
+  local req_port="${2:-}"
+  local cport; cport="$(valid_port "$req_port" "$DEF_STREAM")"
+  # Auto-heal legacy callers/configs that saved 1705 (control) for listening.
+  # shellcheck disable=SC2086
+  set -- $(share_ports); local cfg_stream="$1" cfg_control="$2"
+  if [ -n "$req_port" ] && [ "$cport" = "$cfg_control" ] && [ "$cport" != "$cfg_stream" ]; then
+    echo "note: remapping legacy control port $cport -> stream port $cfg_stream" >&2
+    cport="$cfg_stream"
+  fi
   have snapclient || { echo "missing: snapclient (yay -S snapcast)" | tee /dev/stderr; return 3; }
+  # Preflight BEFORE touching the current session: fail fast with a clear
+  # error instead of killing a good listener then reconnect-looping.
+  if ! tcp_reachable "$host" "$cport"; then
+    echo "ERROR: cannot reach $host:$cport. Is the sharer sharing? Open TCP $cport on the sharer." >&2
+    return 5
+  fi
+  # Single-mode: stop dock-owned sharing before listening (avoids loop/feedback).
+  local spid; spid="$(read_pid "$SERVER_PID")"
+  if alive "$spid"; then echo "stopping share to listen (single mode)"; cmd_share_stop >/dev/null 2>&1 || true; fi
+  # Reuse if already on the same target and healthy.
   local cpid; cpid="$(read_pid "$CLIENT_PID")"
-  if alive "$cpid"; then echo "already listening (pid $cpid)"; return 0; fi
+  if alive "$cpid"; then
+    local cur=""; [ -f "$CLIENT_TARGET" ] && cur="$(cat "$CLIENT_TARGET" 2>/dev/null)"
+    if [ "$cur" = "$host $cport" ] && grep -q "ServerSettings" "$CLIENT_LOG" 2>/dev/null; then
+      echo "already listening to $host:$cport (pid $cpid)"; return 0
+    fi
+    echo "restarting stale listener (was: $cur)"
+    cmd_listen_stop >/dev/null 2>&1 || true
+    pkill -x snapclient 2>/dev/null || true
+    sleep 1
+  else
+    rm -f "$CLIENT_PID"
+    pkill -x snapclient 2>/dev/null || true
+  fi
   printf '%s %s\n' "$host" "$cport" > "$CLIENT_TARGET"
   printf '%s' "$host" > "$CACHE/snapclient.host"
-  nohup snapclient -h "$host" -p "$cport" --hostID "$(hostname)-dock" >"$CLIENT_LOG" 2>&1 &
+  : > "$CLIENT_LOG"
+  # Modern URI form (snapclient 0.33+); -h/-p are deprecated.
+  # shellcheck disable=SC2094
+  nohup snapclient "tcp://$host:$cport" --hostID "$(hostname)-dock" >"$CLIENT_LOG" 2>&1 &
   echo $! > "$CLIENT_PID"
-  echo "listening to $host:$cport (pid $(cat "$CLIENT_PID"))"
+  # Wait for handshake (ServerSettings) so callers know it really connected.
+  local i
+  for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
+    sleep 0.5
+    grep -q "ServerSettings" "$CLIENT_LOG" 2>/dev/null && break
+    grep -qE "ERROR|Failed to send hello|unknown message type|Connection refused" "$CLIENT_LOG" 2>/dev/null && break
+  done
+  if grep -q "ServerSettings" "$CLIENT_LOG" 2>/dev/null; then
+    echo "listening to $host:$cport (pid $(cat "$CLIENT_PID"))"
+    return 0
+  fi
+  echo "ERROR: listen to $host:$cport failed — see $CLIENT_LOG:" >&2
+  tail -n 8 "$CLIENT_LOG" >&2 || true
+  kill "$(read_pid "$CLIENT_PID")" 2>/dev/null || true
+  rm -f "$CLIENT_PID"
+  pkill -x snapclient 2>/dev/null || true
+  return 6
 }
 
 cmd_listen_stop() {
@@ -276,5 +356,5 @@ case "${1:-}" in
   http-start) cmd_http_start "${2:-8099}" ;;
   http-stop) cmd_http_stop ;;
   ip) lan_ip; echo ;;
-  *) echo "usage: $0 {check|status --json|share-start [stream [control [web]]]|share-stop|listen-start <host> [control-port]|listen-stop|http-start [port]|http-stop|ip}" >&2; exit 2 ;;
+  *) echo "usage: $0 {check|status --json|share-start [stream [control [web]]]|share-stop|listen-start <host> [stream-port]|listen-stop|http-start [port]|http-stop|ip}" >&2; exit 2 ;;
 esac
