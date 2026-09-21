@@ -219,6 +219,12 @@ Item {
   property int lanControlPort: 1705
   property int lanWebPort: 1780
   property string lanMonitor: ""
+  // This dock's own listen volume (per-client volume on the sharer,
+  // independent of the server's player volume and other listeners).
+  // Polled while listening; -1 preview means "show polled value".
+  property int lanListenVolume: 100
+  property int lanListenVolumePreview: -1
+  readonly property int listenVolumeShown: lanListenVolumePreview >= 0 ? lanListenVolumePreview : lanListenVolume
   property string lanError: ""
   property bool lanPortsBusy: false
   property bool lanClientOk: false
@@ -273,11 +279,25 @@ Item {
     var h = String(host || config.lanHost || "").trim();
     if (h === "") { root.lanError = "enter host IP first"; return; }
     config.set("lanHost", h);
-    lanRun(Cliamp.lanListenStartCmd(root.lanScript, h, config.lanStreamPort), function(out) {
+    lanRun(Cliamp.lanListenStartCmd(root.lanScript, h, config.lanStreamPort, config.lanWebPort), function(out) {
       root.lanNoteError(out);
     });
   }
   function lanListenStop() { root.lanError = ""; lanRun(Cliamp.lanListenStopCmd(root.lanScript)); }
+  function lanListenVolumeSet(v) {
+    var pct = Math.max(0, Math.min(100, Math.round(Number(v) || 0)));
+    root.lanListenVolumePreview = pct;
+    lanRun(Cliamp.lanListenVolumeCmd(root.lanScript, config.lanHost, config.lanWebPort, pct), function(out) {
+      var got = Cliamp.parseLanListenVolume(out);
+      if (got === null) {
+        root.lanListenVolumePreview = -1;
+        root.lanError = "listen volume failed (is Listen running?)";
+      } else {
+        root.lanListenVolume = got;
+        root.lanListenVolumePreview = -1;
+      }
+    });
+  }
   function lanHttpStart() {
     root.lanError = "";
     lanRun(Cliamp.lanHttpStartCmd(root.lanScript, config.lanHttpPort), function(out) {
@@ -305,6 +325,10 @@ Item {
           root.lanClientPort = st.clientPort; root.lanMonitor = st.monitor;
           root.lanStreamPort = st.streamPort; root.lanControlPort = st.controlPort;
           root.lanWebPort = st.webPort;
+          if (st.listenVolume >= 0) {
+            root.lanListenVolume = st.listenVolume;
+            root.lanListenVolumePreview = -1;
+          }
         }
       }
     }
@@ -385,6 +409,7 @@ Item {
         monitor: root.lanMonitor, error: root.lanError,
         role: config.lanRole, streamPort: root.lanStreamPort,
         controlPort: root.lanControlPort, webPort: root.lanWebPort,
+        listenVolume: root.lanListenVolume,
         httpPort: config.lanHttpPort });
     }
     function listen(host: string): string { root.lanListenStart(host); return "listening:" + host; }

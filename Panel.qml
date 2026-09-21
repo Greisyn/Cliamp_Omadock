@@ -206,13 +206,31 @@ Panel {
             }
           }
           Column { width: (parent.width - parent.spacing) / 2; spacing: 2
-            RowLabel { text: "Control port (must match sharer)"; width: parent.width }
+            RowLabel { text: "Stream port (must match sharer)"; width: parent.width }
             TextField {
-              width: parent.width; text: String(config.lanControlPort); placeholderText: "1705";
+              width: parent.width; text: String(config.lanStreamPort); placeholderText: "1704";
               foreground: root.contentForeground; font.family: root.contentFontFamily;
-              onAccepted: { var p = parseInt(text, 10); if (isFinite(p)) config.set("lanControlPort", Math.max(1024, Math.min(65535, p))); }
+              onAccepted: { var p = parseInt(text, 10); if (isFinite(p)) config.set("lanStreamPort", Math.max(1024, Math.min(65535, p))); }
             }
           }
+        }
+        // Independent listen volume (this dock's own loudness on the
+        // sharer — server player volume and other listeners untouched).
+        Row {
+          width: parent.width; spacing: Style.spacing.sm
+          visible: config.lanRole !== "server" && root.dockService && root.dockService.lanListening
+          WidgetButton { width: 40; text: "-"; onPressed: function() { if (root.dockService) root.dockService.lanListenVolumeSet(root.dockService.listenVolumeShown - 5); } }
+          Column { width: parent.width - 2 * 40 - parent.spacing * 2; spacing: 2
+            RowLabel { text: "Listen volume (" + (root.dockService ? root.dockService.listenVolumeShown : 100) + "%)"; width: parent.width }
+            PanelSlider {
+              width: parent.width
+              minimum: 0; maximum: 100; step: 1
+              value: root.dockService ? root.dockService.listenVolumeShown : 100
+              onMoved: function(v) { if (root.dockService) root.dockService.lanListenVolumePreview = Math.max(0, Math.min(100, Math.round(v))); }
+              onReleased: function(v) { if (root.dockService) root.dockService.lanListenVolumeSet(v); }
+            }
+          }
+          WidgetButton { width: 40; text: "+"; onPressed: function() { if (root.dockService) root.dockService.lanListenVolumeSet(root.dockService.listenVolumeShown + 5); } }
         }
         // Port tuning (server side; hidden in client mode)
         SectionHeader { text: "Ports"; visible: config.lanRole !== "client" }

@@ -25,8 +25,13 @@
 #   lan-share.sh share-start [stream [control [web]]]
 #                                         -> start snapserver + ffmpeg feeder
 #   lan-share.sh share-stop               -> stop both
-#   lan-share.sh listen-start <host> [stream-port]
+#   lan-share.sh listen-start <host> [stream-port [web-port]]
 #                                         -> start snapclient to <host>
+#   lan-share.sh listen-volume <host> <web-port> [percent]
+#                                         -> get/set this dock's listen volume
+#                                            (per-client volume on the sharer,
+#                                            independent of the server's player
+#                                            volume). Prints {"volume":N}.
 #   lan-share.sh listen-stop
 #   lan-share.sh http-start [port]        -> ffmpeg MP3 listen-mode fallback
 #   lan-share.sh http-stop
@@ -143,20 +148,94 @@ cmd_status() {
     grep -q "ServerSettings" "$CLIENT_LOG" 2>/dev/null && client_ok="true"
   fi
   local ip; ip="$(lan_ip)"
-  local chost="" cport="$DEF_STREAM"
+  local chost="" cport="$DEF_STREAM" cweb="$DEF_WEB"
   if [ -f "$CLIENT_TARGET" ]; then
     # shellcheck disable=SC2086
-    set -- $(cat "$CLIENT_TARGET" 2>/dev/null); chost="${1:-}"; cport="$(valid_port "${2:-}" "$DEF_STREAM")"
+    set -- $(cat "$CLIENT_TARGET" 2>/dev/null); chost="${1:-}"; cport="$(valid_port "${2:-}" "$DEF_STREAM")"; cweb="$(valid_port "${3:-}" "$DEF_WEB")"
   elif [ -f "$CACHE/snapclient.host" ]; then
     # legacy file (host only) from earlier dock versions
     chost="$(cat "$CACHE/snapclient.host" 2>/dev/null)"
   fi
   local hport="$DEF_HTTP"; [ -f "$CACHE/cliamp-http.port" ] && hport="$(cat "$CACHE/cliamp-http.port" 2>/dev/null)"
   local mon; mon="$(default_monitor)"
+  # Per-dock listen volume (this machine's client volume on the sharer).
+  # -1 when not listening / unreachable; queried with a short timeout so
+  # a dead sharer never stalls status.
+  local lvol="-1"
+  if [ "$listening" = "true" ] && [ -n "$chost" ]; then
+    lvol="$(listen_volume_get "$chost" "$cweb" 2>/dev/null)" || lvol="-1"
+    [ -z "$lvol" ] && lvol="-1"
+  fi
   # shellcheck disable=SC2086
   set -- $(share_ports)
-  printf '{"sharing":%s,"feeder":%s,"listening":%s,"http":%s,"ip":"%s","client_host":"%s","client_port":%s,"http_port":"%s","monitor":"%s","stream_port":%s,"control_port":%s,"web_port":%s,"ports_busy":%s,"client_ok":%s}\n' \
-    "$sharing" "$feeder" "$listening" "$http" "$ip" "$chost" "$cport" "$hport" "$mon" "$1" "$2" "$3" "$ports_busy" "$client_ok"
+  printf '{"sharing":%s,"feeder":%s,"listening":%s,"http":%s,"ip":"%s","client_host":"%s","client_port":%s,"http_port":"%s","monitor":"%s","stream_port":%s,"control_port":%s,"web_port":%s,"ports_busy":%s,"client_ok":%s,"listen_volume":%s}\n' \
+    "$sharing" "$feeder" "$listening" "$http" "$ip" "$chost" "$cport" "$hport" "$mon" "$1" "$2" "$3" "$ports_busy" "$client_ok" "$lvol"
+}
+
+# --- Per-dock listen volume (Snapcast per-client volume) ---
+# Each listener's loudness lives on the sharer as that client's own
+# volume, independent of the server's player volume and of every other
+# listener. These helpers speak the sharer's JSON-RPC (port 1780 by
+# default) with curl+jq.
+
+# POST a JSON-RPC body to the sharer; prints the response.
+snap_rpc() {
+  # $1 = host, $2 = web port, $3 = request body
+  curl -s -m 5 -X POST "http://$1:$2/jsonrpc" \
+    -H 'Content-Type: application/json' -d "$3"
+}
+
+# Print our client id on the sharer (matches the --hostID we connect
+# with, falling back to hostname matches for foreign clients).
+find_client_id() {
+  # $1 = host, $2 = web port
+  local st hid hname cid
+  st="$(snap_rpc "$1" "$2" '{"id":1,"jsonrpc":"2.0","method":"Server.GetStatus"}')" || return 5
+  hid="$(hostname)-dock"; hname="$(hostname)"
+  cid="$(printf '%s' "$st" | jq -r --arg hid "$hid" --arg hname "$hname" '
+    [.result.server.groups[]?.clients[]?
+     | select(.id == $hid
+              or ((.config.name // "") | contains($hname))
+              or ((.host.name // "") | contains($hname)))]
+    | .[0].id // empty' 2>/dev/null)"
+  [ -z "$cid" ] && return 6
+  printf '%s' "$cid"
+}
+
+# Print this dock's listen volume percent on the sharer (for status).
+listen_volume_get() {
+  # $1 = host, $2 = web port
+  local st cid
+  st="$(snap_rpc "$1" "$2" '{"id":1,"jsonrpc":"2.0","method":"Server.GetStatus"}')" || return 5
+  cid="$(printf '%s' "$st" | jq -r --arg hid "$(hostname)-dock" --arg hname "$(hostname)" '
+    [.result.server.groups[]?.clients[]?
+     | select(.id == $hid
+              or ((.config.name // "") | contains($hname))
+              or ((.host.name // "") | contains($hname)))]
+    | .[0] // empty' 2>/dev/null)"
+  [ -z "$cid" ] && return 6
+  printf '%s' "$cid" | jq -r '.config.volume.percent // 100'
+}
+
+cmd_listen_volume() {
+  # $1 = host, $2 = web port, $3 = percent (empty = get only)
+  local host="${1:-}" web port_req pct
+  web="$(valid_port "${2:-}" "$DEF_WEB")"
+  pct="${3:-}"
+  [ -z "$host" ] && { echo "usage: $0 listen-volume <host> <web-port> [percent]" >&2; return 2; }
+  have curl || { echo "missing: curl" >&2; return 3; }
+  have jq || { echo "missing: jq" >&2; return 3; }
+  local cid req vol
+  cid="$(find_client_id "$host" "$web")" || { echo "client not on $host (start Listen first)" >&2; return 6; }
+  if [ -n "$pct" ]; then
+    case "$pct" in ''|*[!0-9]*) pct="100" ;; esac
+    [ "$pct" -gt 100 ] && pct="100"
+    req="$(jq -n --arg id "$cid" --argjson pct "$pct" \
+      '{id:1, jsonrpc:"2.0", method:"Client.SetVolume", params:{id:$id, volume:{percent:$pct, muted:false}}}')"
+    snap_rpc "$host" "$web" "$req" >/dev/null || return 5
+  fi
+  vol="$(listen_volume_get "$host" "$web")" || return 6
+  printf '{"volume":%s}\n' "$vol"
 }
 
 cmd_share_start() {
@@ -251,7 +330,7 @@ cmd_listen_start() {
   # 1704), never the control port (default 1705). Control is JSON-RPC;
   # dialing it fails with hello timeout / unknown message type.
   local host="${1:-}"
-  [ -z "$host" ] && { echo "usage: $0 listen-start <host-ip> [stream-port]" >&2; return 2; }
+  [ -z "$host" ] && { echo "usage: $0 listen-start <host-ip> [stream-port [web-port]]" >&2; return 2; }
   local req_port="${2:-}"
   local cport; cport="$(valid_port "$req_port" "$DEF_STREAM")"
   # Auto-heal legacy callers/configs that saved 1705 (control) for listening.
@@ -261,6 +340,8 @@ cmd_listen_start() {
     echo "note: remapping legacy control port $cport -> stream port $cfg_stream" >&2
     cport="$cfg_stream"
   fi
+  # Web port (sharer's JSON-RPC, for listen-volume); stored for status.
+  local cweb; cweb="$(valid_port "${3:-}" "$DEF_WEB")"
   have snapclient || { echo "missing: snapclient (yay -S snapcast)" | tee /dev/stderr; return 3; }
   # Preflight BEFORE touching the current session: fail fast with a clear
   # error instead of killing a good listener then reconnect-looping.
@@ -275,7 +356,7 @@ cmd_listen_start() {
   local cpid; cpid="$(read_pid "$CLIENT_PID")"
   if alive "$cpid"; then
     local cur=""; [ -f "$CLIENT_TARGET" ] && cur="$(cat "$CLIENT_TARGET" 2>/dev/null)"
-    if [ "$cur" = "$host $cport" ] && grep -q "ServerSettings" "$CLIENT_LOG" 2>/dev/null; then
+    if [ "$cur" = "$host $cport $cweb" ] && grep -q "ServerSettings" "$CLIENT_LOG" 2>/dev/null; then
       echo "already listening to $host:$cport (pid $cpid)"; return 0
     fi
     echo "restarting stale listener (was: $cur)"
@@ -286,7 +367,7 @@ cmd_listen_start() {
     rm -f "$CLIENT_PID"
     pkill -x snapclient 2>/dev/null || true
   fi
-  printf '%s %s\n' "$host" "$cport" > "$CLIENT_TARGET"
+  printf '%s %s %s\n' "$host" "$cport" "$cweb" > "$CLIENT_TARGET"
   printf '%s' "$host" > "$CACHE/snapclient.host"
   : > "$CLIENT_LOG"
   # Modern URI form (snapclient 0.33+); -h/-p are deprecated.
@@ -351,10 +432,11 @@ case "${1:-}" in
   status) shift; [ "${1:-}" = "--json" ] && cmd_status || cmd_status ;;
   share-start) cmd_share_start "${2:-}" "${3:-}" "${4:-}" ;;
   share-stop) cmd_share_stop ;;
-  listen-start) cmd_listen_start "${2:-}" "${3:-}" ;;
+  listen-start) cmd_listen_start "${2:-}" "${3:-}" "${4:-}" ;;
   listen-stop) cmd_listen_stop ;;
+  listen-volume) cmd_listen_volume "${2:-}" "${3:-}" "${4:-}" ;;
   http-start) cmd_http_start "${2:-8099}" ;;
   http-stop) cmd_http_stop ;;
   ip) lan_ip; echo ;;
-  *) echo "usage: $0 {check|status --json|share-start [stream [control [web]]]|share-stop|listen-start <host> [stream-port]|listen-stop|http-start [port]|http-stop|ip}" >&2; exit 2 ;;
+  *) echo "usage: $0 {check|status --json|share-start [stream [control [web]]]|share-stop|listen-start <host> [stream-port [web-port]]|listen-stop|listen-volume <host> <web-port> [percent]|http-start [port]|http-stop|ip}" >&2; exit 2 ;;
 esac

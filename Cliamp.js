@@ -137,16 +137,26 @@ function lanShareStartCmd(script, stream, control, web) {
   return [script, "share-start", String(stream), String(control), String(web)];
 }
 function lanShareStopCmd(script) { return [script, "share-stop"]; }
-function lanListenStartCmd(script, host, streamPort) {
-  return [script, "listen-start", String(host), String(streamPort)];
+function lanListenStartCmd(script, host, streamPort, webPort) {
+  var args = [script, "listen-start", String(host), String(streamPort)];
+  if (webPort !== undefined && webPort !== null && String(webPort) !== "")
+    args.push(String(webPort));
+  return args;
 }
 function lanListenStopCmd(script) { return [script, "listen-stop"]; }
+function lanListenVolumeCmd(script, host, webPort, percent) {
+  var args = [script, "listen-volume", String(host), String(webPort)];
+  if (percent !== undefined && percent !== null && String(percent) !== "")
+    args.push(String(percent));
+  return args;
+}
 function lanHttpStartCmd(script, port) { return [script, "http-start", String(port)]; }
 function lanHttpStopCmd(script) { return [script, "http-stop"]; }
 
 function parseLanStatus(raw) {
   try {
     var o = JSON.parse(String(raw || "{}"));
+    var lv = parseInt(o.listen_volume, 10);
     return {
       sharing: !!o.sharing, feeder: !!o.feeder, listening: !!o.listening,
       http: !!o.http, ip: String(o.ip || ""), clientHost: String(o.client_host || ""),
@@ -155,8 +165,17 @@ function parseLanStatus(raw) {
       streamPort: parseInt(o.stream_port, 10) || 1704,
       controlPort: parseInt(o.control_port, 10) || 1705,
       webPort: parseInt(o.web_port, 10) || 1780,
-      portsBusy: !!o.ports_busy, clientOk: !!o.client_ok
+      portsBusy: !!o.ports_busy, clientOk: !!o.client_ok,
+      listenVolume: (isFinite(lv) && lv >= 0) ? Math.max(0, Math.min(100, lv)) : -1
     };
+  } catch (e) { return null; }
+}
+function parseLanListenVolume(raw) {
+  try {
+    var o = JSON.parse(String(raw || "{}"));
+    var v = parseInt(o.volume, 10);
+    if (!isFinite(v)) return null;
+    return Math.max(0, Math.min(100, v));
   } catch (e) { return null; }
 }
 function parseLanCheck(raw) {

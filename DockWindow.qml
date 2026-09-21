@@ -440,6 +440,30 @@ PanelWindow {
               anchors.verticalCenter: parent.verticalCenter
             }
           }
+          // Independent listen volume: this dock's own loudness on the
+          // sharer (per-client volume) — the server's player volume and
+          // other listeners are untouched.
+          Text {
+            width: parent.width
+            visible: cfg.lanRole !== "server" && service.lanListening
+            text: "LISTEN VOL  ·  " + service.listenVolumeShown + "%"
+            color: Color.accent
+            font.family: Style.fontFamily; font.pixelSize: 10; font.letterSpacing: 1.4
+          }
+          Row {
+            width: parent.width; spacing: 6
+            visible: cfg.lanRole !== "server" && service.lanListening
+            DockAction { width: 36; label: "-"; hint: "Listen volume down"; onTriggered: service.lanListenVolumeSet(service.listenVolumeShown - 5) }
+            PanelSlider {
+              width: parent.width - 36 * 2 - parent.spacing * 2
+              anchors.verticalCenter: parent.verticalCenter
+              minimum: 0; maximum: 100; step: 1
+              value: service.listenVolumeShown
+              onMoved: function(v) { service.lanListenVolumePreview = Math.max(0, Math.min(100, Math.round(v))); }
+              onReleased: function(v) { service.lanListenVolumeSet(v); }
+            }
+            DockAction { width: 36; label: "+"; hint: "Listen volume up"; onTriggered: service.lanListenVolumeSet(service.listenVolumeShown + 5) }
+          }
 
         }
       }

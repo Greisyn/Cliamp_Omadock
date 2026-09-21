@@ -135,6 +135,11 @@ Play a playlist on this machine, listen in the bedroom/office in sync.
 - The floating dock card carries a compact LAN row (status + Share/Listen
   quick toggles, role-aware); full role/port editing stays in the settings
   panel.
+- Independent listen volume: each listener dock has its own LISTEN VOL
+  control (dock card + settings panel, slider or −/+ steps) driving that
+  client's own volume on the sharer (`Client.SetVolume` on the sharer's
+  1780 JSON-RPC). The server's player volume and every other listener
+  are untouched.
 - Ports (all switchable in the panel, applied on next Share start):
   audio `lanStreamPort` (1704), control `lanControlPort` (1705),
   web `lanWebPort` (1780), HTTP fallback `lanHttpPort` (8099).
@@ -146,7 +151,8 @@ Play a playlist on this machine, listen in the bedroom/office in sync.
   Footer shows `SHARING :<audio>` / `LISTENING` state. Helper:
   `lan-share.sh`
   (`check|status --json|share-start [audio [control [web]]]|share-stop|`
-  `listen-start <host> [stream-port]|listen-stop|http-start [port]|`
+  `listen-start <host> [stream-port [web-port]]|listen-stop|`
+  `listen-volume <host> <web-port> [percent]|http-start [port]|`
   `http-stop`). Share and Listen are single-mode (starting one stops the other).
 - Deps on sharer AND listeners: `yay -S snapcast` (ffmpeg already present).
   Open the three Snapcast TCP ports on the sharer
