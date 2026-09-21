@@ -145,13 +145,17 @@ PanelWindow {
       id: content
       anchors.fill: parent
       Keys.onEscapePressed: root.collapse()
-      // PageUp/PageDown scroll the card body a page at a time (the card
-      // has no text inputs, so these keys never collide with typing).
+      // PageUp/PageDown (and the sticky PgUp/PgDn buttons below) scroll
+      // the card body a page at a time — the touchpad path when there is
+      // no wheel. The card has no text inputs, so these keys never
+      // collide with typing.
+      function pageCard(dir) {
+        var maxY = Math.max(0, scroller.contentHeight - scroller.height);
+        scroller.contentY = Math.max(0, Math.min(maxY, scroller.contentY + dir * scroller.height));
+      }
       Keys.onPressed: function(event) {
         if (event.key !== Qt.Key_PageDown && event.key !== Qt.Key_PageUp) return;
-        var maxY = Math.max(0, scroller.contentHeight - scroller.height);
-        var dir = event.key === Qt.Key_PageDown ? 1 : -1;
-        scroller.contentY = Math.max(0, Math.min(maxY, scroller.contentY + dir * scroller.height));
+        pageCard(event.key === Qt.Key_PageDown ? 1 : -1);
         event.accepted = true;
       }
 
@@ -365,8 +369,9 @@ PanelWindow {
             }
           }
 
-          // volume: optimistic state (status carries no volume field),
-          // preview while dragging, commit to cliamp on release
+          // volume: drag/wheel the slider, or tap −/+ for 1 dB steps
+          // (sliders are pointer-only, so the steppers double as the
+          // keyboard path: Tab to one, Enter/Space to nudge).
           Text {
             width: parent.width
             visible: cfg.showVolume
@@ -374,13 +379,19 @@ PanelWindow {
             color: Color.accent
             font.family: Style.fontFamily; font.pixelSize: 10; font.letterSpacing: 1.4
           }
-          PanelSlider {
-            width: parent.width
+          Row {
+            width: parent.width; spacing: 6
             visible: cfg.showVolume
-            minimum: -30; maximum: 6; step: 0.5
-            value: service.volumeDb
-            onMoved: function(v) { service.previewVolume(v); }
-            onReleased: function(v) { service.commitVolume(v); }
+            DockAction { width: 36; label: "-"; hint: "Volume down 1 dB"; onTriggered: service.commitVolume(service.volumeDb - 1) }
+            PanelSlider {
+              width: parent.width - 36 * 2 - parent.spacing * 2
+              anchors.verticalCenter: parent.verticalCenter
+              minimum: -30; maximum: 6; step: 0.5
+              value: service.volumeDb
+              onMoved: function(v) { service.previewVolume(v); }
+              onReleased: function(v) { service.commitVolume(v); }
+            }
+            DockAction { width: 36; label: "+"; hint: "Volume up 1 dB"; onTriggered: service.commitVolume(service.volumeDb + 1) }
           }
 
           // toggles
@@ -431,6 +442,17 @@ PanelWindow {
           }
 
         }
+      }
+
+      // Sticky page buttons for wheel-less pointers (touchpads): same
+      // paging as PageUp/PageDown. Hidden when the body fits the card.
+      Column {
+        anchors { right: scroller.right; bottom: scroller.bottom; margins: 6 }
+        spacing: 6
+        z: 10
+        visible: scroller.contentHeight > scroller.height
+        DockAction { label: "PgUp"; hint: "Scroll up a page"; onTriggered: content.pageCard(-1) }
+        DockAction { label: "PgDn"; hint: "Scroll down a page"; onTriggered: content.pageCard(1) }
       }
 
       // footer

@@ -89,6 +89,18 @@ Persisted to `~/.config/omarchy/local.cliamp-dock.json`.
 Long panels scroll with the mouse wheel or PageUp/PageDown (e.g. to reach
 LAN Share on short screens).
 
+## Keyboard & touchpad
+
+No right-click, hover, or scroll wheel required:
+
+- The dock handle opens on tap as well as hover-dwell; the card header
+  gear opens settings (right-click on the bar icon works too).
+- Tab / Shift+Tab moves through card buttons, switches, and text fields;
+  Enter/Space activates; Esc closes card and settings.
+- Settings takes keyboard focus on open, so PageUp/PageDown works at once.
+- PageUp/PageDown — or the sticky PgUp/PgDn buttons — scroll long panels.
+- Volume has −/+ step buttons beside the slider (sliders are pointer-only).
+
 ## Theme-aware
 
 All surfaces use `Color.popups.background/text/border`, `Color.accent`,

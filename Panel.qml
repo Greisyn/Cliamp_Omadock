@@ -60,7 +60,12 @@ Panel {
     signal flipped()
     width: parent ? parent.width : 0
     spacing: Style.spacing.lg
-    RowLabel { text: parent.label; width: parent.width - sw.width - parent.spacing; anchors.verticalCenter: parent.verticalCenter; elide: Text.ElideRight }
+    // Keyboard-operable: Tab lands here, Space/Enter flips, and the label
+    // tints accent while focused so keyboard users can see where they are.
+    activeFocusOnTab: true
+    Keys.onSpacePressed: flipped()
+    Keys.onReturnPressed: flipped()
+    RowLabel { text: parent.label; width: parent.width - sw.width - parent.spacing; anchors.verticalCenter: parent.verticalCenter; elide: Text.ElideRight; color: parent.activeFocus ? Color.accent : root.contentForeground }
     ToggleSwitch {
       id: sw
       checked: parent.checked
@@ -83,6 +88,9 @@ Panel {
     bar: root.bar
     open: root.opened
     centerOnBar: false
+    // Take keyboard focus on open so PageUp/PageDown work immediately
+    // (critical for wheel-less pointers) and Tab starts inside the panel.
+    focusTarget: panelScroller
     contentWidth: fittedContentWidth(Style.space(440))
     contentHeight: fittedContentHeight(contentColumn.implicitHeight)
 
@@ -98,6 +106,7 @@ Panel {
     Flickable {
       id: panelScroller
       anchors.fill: parent
+      focus: true
       contentWidth: width
       contentHeight: contentColumn.implicitHeight
       clip: true
