@@ -11,7 +11,7 @@
 #   $HOME/.cache/cliamp-dock/snapfifo        PCM pipe snapserver reads
 #   $HOME/.cache/cliamp-dock/snapserver.conf generated config
 #   $HOME/.cache/cliamp-dock/snapserver.ports  chosen ports "stream control web"
-#   $HOME/.cache/cliamp-dock/snapclient.target "host stream-port"
+#   $HOME/.cache/cliamp-dock/snapclient.target "host stream-port web-port"
 #   $HOME/.cache/cliamp-dock/*.pid           daemon pids
 #   $HOME/.cache/cliamp-dock/*.log           daemon logs
 #
@@ -306,7 +306,7 @@ listen_volume_get() {
 
 cmd_listen_volume() {
   # $1 = host, $2 = web port, $3 = percent (empty = get only)
-  local host="${1:-}" web port_req pct
+  local host="${1:-}" web pct
   web="$(valid_port "${2:-}" "$DEF_WEB")"
   pct="${3:-}"
   [ -z "$host" ] && { echo "usage: $0 listen-volume <host> <web-port> [percent]" >&2; return 2; }

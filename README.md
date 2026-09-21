@@ -53,7 +53,7 @@ The bar shows only an icon (play state + settings).
 
 - `service` (`DockService.qml`, `keepLoaded: true`): polls `cliamp status --json`,
   renders the floating `PanelWindow` dock, auto-hides, exposes IPC
-  `local.cliamp-dock toggle/show/hide/status/settings` (plus LAN:
+  `local.cliamp-dock toggle/show/hide/status/settings/silence` (plus LAN:
   `share/unshare/listen/unlisten/lanstatus`, see below).
 - `bar-widget` (`BarWidget.qml`): icon only. Right click toggles settings
   (`Panel.qml`), left click toggles play/pause. The dock card header also
@@ -66,7 +66,8 @@ The bar shows only an icon (play state + settings).
 - Header shows the live track artist when the daemon reports one.
 - Volume slider binds the real `volume` field from `status --json` (newer
   cliamp), falling back to the persisted value otherwise. Drag previews the
-  dB label live; release sends one `cliamp volume` call.
+  dB label live; release sends one `cliamp volume` call. −/+ step buttons
+  beside it cover keyboards and touchpads.
 - Visualizer mirror: a strip fed by `cliamp visstream --fps 15`, the same
   band data cliamp's own visualizer renders. The live mode name rides in the
   stream frames, so the caption always shows what cliamp actually selected —
@@ -149,22 +150,26 @@ Play a playlist on this machine, listen in the bedroom/office in sync.
 - Panel section "LAN Share (synced rooms)" (near the top of the settings
   panel): **Share this room** publishes
   the default-sink monitor via Snapcast. **Listen** joins another sharer.
-- Silent room (stream without local playback): **Silent setup** routes
+- Silent room (stream without local playback): settings' **Silence**
+  button (or `lan-share.sh silent-sink`) routes
   cliamp into a null sink and selects its monitor as the share source —
   this room goes quiet while listeners keep full audio. Or set **Share
   monitor** manually (empty = default sink); takes effect on next Share
-  start. Helper: `lan-share.sh silent-sink`.
+  start.
 - Room toggle: the dock card's **Silent** button (or settings' Silence /
   Room sound, or `omarchy-shell local.cliamp-dock silence`) flips the
   room between silent and speakers at any time — the stream keeps full
   audio either way. Restarts an active share so the new source applies
   at once; the card shows `· SILENT` while quiet.
-  Footer shows `SHARING :<audio>` / `LISTENING` state. Helper:
-  `lan-share.sh`
-  (`check|status --json|share-start [audio [control [web]]]|share-stop|`
-  `listen-start <host> [stream-port [web-port]]|listen-stop|`
-  `listen-volume <host> <web-port> [percent]|http-start [port]|`
-  `http-stop`). Share and Listen are single-mode (starting one stops the other).
+- Footer shows `SHARING :<audio>` / `LISTENING` state.
+- Helper: `lan-share.sh`
+  (`check|status --json|share-start [stream [control [web [monitor]]]]|`
+  `share-stop|silent-sink|silent-toggle|listen-start <host> [stream-port`
+  `[web-port]]|listen-stop|listen-volume <host> <web-port> [percent]|`
+  `http-start [port]|http-stop`). Share and Listen are single-mode
+  (starting one stops the other). `status --json` also reports
+  `ports_busy`, `client_ok` (handshake done), `listen_volume`, and
+  `room_silent`.
 - Deps on sharer AND listeners: `yay -S snapcast` (ffmpeg already present).
   Open the three Snapcast TCP ports on the sharer
   (e.g. `sudo ufw allow 1704,1705,1780/tcp`, adjusted if you changed ports).

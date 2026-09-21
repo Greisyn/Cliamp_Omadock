@@ -182,8 +182,8 @@ Panel {
           }
         }
         // Share source (hidden in client mode). Empty = default sink.
-        // "Silent setup" routes cliamp into a null sink so this room stays
-        // quiet while the stream keeps full audio, then selects it here.
+        // Silence/room toggle routes cliamp between the null sink and the
+        // speakers; the stream keeps full audio either way.
         Row {
           width: parent.width; spacing: Style.spacing.sm
           visible: config.lanRole !== "client"
@@ -461,7 +461,7 @@ Panel {
           WidgetButton { text: "Close"; onPressed: function() { root.close(); } }
           Text {
             textFormat: Text.PlainText
-            text: "v0.2.0"
+            text: "v0.3.0"
             color: Util.alpha(root.contentForeground, 0.45)
             font.family: root.contentFontFamily; font.pixelSize: Style.font.caption
             anchors.verticalCenter: parent.verticalCenter
