@@ -57,7 +57,7 @@ BarWidget {
     hasVisualContent: true
     active: false
     useActiveColor: false
-    tooltipText: root.trackTitle + (root.playing ? " (playing)" : " (paused)") + "\nLeft click: play/pause\nRight click: settings"
+    tooltipText: root.trackTitle + (root.playing ? " (playing)" : " (paused)") + "\nLeft click: play/pause\nRight click or Shift+click: settings"
 
     OpticalGlyph {
       anchors.centerIn: parent
@@ -77,6 +77,25 @@ BarWidget {
       }
       if (b === Qt.LeftButton) {
         if (root.dockService) root.dockService.run("toggle");
+      }
+    }
+  }
+
+  // Shift+Left opens settings as an alternate to right-click.
+  // WidgetButton only forwards the button (not modifiers), so this
+  // transparent layer sits on top, accepts Shift+press, and lets all
+  // other presses fall through to the button below.
+  MouseArea {
+    anchors.fill: parent
+    acceptedButtons: Qt.LeftButton
+    hoverEnabled: false
+    cursorShape: Qt.PointingHandCursor
+    onPressed: function(mouse) {
+      if (mouse.modifiers & Qt.ShiftModifier) {
+        mouse.accepted = true;
+        if (panelLoader.item && panelLoader.item.toggle) panelLoader.item.toggle();
+      } else {
+        mouse.accepted = false;
       }
     }
   }

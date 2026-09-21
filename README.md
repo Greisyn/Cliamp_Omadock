@@ -52,8 +52,8 @@ The bar shows only an icon (play state + settings).
 - `service` (`DockService.qml`, `keepLoaded: true`): polls `cliamp status --json`,
   renders the floating `PanelWindow` dock, auto-hides, exposes IPC
   `local.cliamp-dock toggle/show/hide/status`.
-- `bar-widget` (`BarWidget.qml`): icon only. Right click toggles settings
-  (`Panel.qml`), left click toggles play/pause. Exposes the same open/close
+- `bar-widget` (`BarWidget.qml`): icon only. Right click or Shift+click
+  toggles settings (`Panel.qml`), left click toggles play/pause. Exposes the same open/close
   contract as first-party widgets so hotkeys/summon route to the panel.
 
 ## Player
