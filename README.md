@@ -15,6 +15,8 @@ omarchy restart shell
 > handle on the right edge of the screen (middle) — hover it briefly or
 > tap it to reveal the player card.
 
+Updates: `omarchy plugin update local.cliamp-dock && omarchy restart shell`.
+
 LAN audio needs `yay -S snapcast` on sharer and listeners (ffmpeg ships
 with Omarchy). Open TCP 1704/1705/1780 on the sharer, or your custom ports.
 
@@ -51,7 +53,8 @@ The bar shows only an icon (play state + settings).
 
 - `service` (`DockService.qml`, `keepLoaded: true`): polls `cliamp status --json`,
   renders the floating `PanelWindow` dock, auto-hides, exposes IPC
-  `local.cliamp-dock toggle/show/hide/status`.
+  `local.cliamp-dock toggle/show/hide/status/settings` (plus LAN:
+  `share/unshare/listen/unlisten/lanstatus`, see below).
 - `bar-widget` (`BarWidget.qml`): icon only. Right click toggles settings
   (`Panel.qml`), left click toggles play/pause. The dock card header also
   carries a gear button that opens settings. Exposes the same open/close
@@ -73,21 +76,19 @@ The bar shows only an icon (play state + settings).
   Streams only while the card is open and the player runs a non-None
   visualizer; toggle with "Live visualizer bars".
 
-## Adjustable options (settings panel)
+## Settings panel sections (top to bottom)
 
-- Positioning: edge (bottom/top/left/right), align, width, offsetX/Y,
-  screen name (empty = focused monitor), compact mode.
-- Hiding: auto-hide never/fullscreen/idle, hide delay, idle seconds,
-  edge trigger strip.
-- Hide options: toggle progress, volume, shuffle/repeat/mono, EQ row,
-  visualizer/speed row individually.
-- Cliamp runtime: volume, shuffle, repeat, mono, speed (0.25–2.0),
-  EQ preset, visualizer, TUI theme, audio device, playlist load.
+- Player: show/hide/toggle the dock card, pin open.
+- LAN Share + Ports: role, share/listen, host, ports (see below).
+- Placement & size: left / right / bottom, card dimensions, compact mode.
+- Edge handle & motion: open/close delays, handle length/depth/position,
+  motion duration, steady hover, reduced motion.
+- Dock sections: show/hide progress, volume, shuffle/repeat/mono, EQ row,
+  visualizer/speed row, live visualizer bars individually.
+- Cliamp options: volume, shuffle, repeat, mono, speed, EQ preset,
+  visualizer, theme, audio device, playlist load.
 
 Persisted to `~/.config/omarchy/local.cliamp-dock.json`.
-
-Long panels scroll with the mouse wheel or PageUp/PageDown (e.g. to reach
-LAN Share on short screens).
 
 ## Keyboard & touchpad
 
@@ -111,7 +112,10 @@ repaints dock + panel with no plugin changes.
 
 ```bash
 omarchy-shell local.cliamp-dock toggle
+omarchy-shell local.cliamp-dock show
+omarchy-shell local.cliamp-dock hide
 omarchy-shell local.cliamp-dock status
+omarchy-shell local.cliamp-dock settings    # open settings panel
 omarchy-shell local.cliamp-dock share        # start LAN share (Snapcast)
 omarchy-shell local.cliamp-dock lanstatus    # {"sharing":..,"ip":..}
 omarchy-shell local.cliamp-dock listen 10.0.0.212
@@ -136,7 +140,8 @@ Play a playlist on this machine, listen in the bedroom/office in sync.
   web `lanWebPort` (1780), HTTP fallback `lanHttpPort` (8099).
   Listeners must use the sharer's control port
   (`snapclient -h <sharer-ip> -p <control>`).
-- Panel section "LAN Share (synced rooms)": **Share this room** publishes
+- Panel section "LAN Share (synced rooms)" (near the top of the settings
+  panel): **Share this room** publishes
   the default-sink monitor via Snapcast. **Listen** joins another sharer.
   Footer shows `SHARING :<audio>` / `LISTENING` state. Helper:
   `lan-share.sh`
